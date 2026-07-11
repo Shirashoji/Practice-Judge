@@ -26,7 +26,33 @@ export const links: Route.LinksFunction = () => [
   },
 ];
 
-// Layoutは使わずに行きます。
+export function Layout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="ja">
+      <head>
+        <meta charSet="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <Meta />
+        <Links />
+      </head>
+      <body>
+        {children}
+        <ScrollRestoration />
+        <Scripts />
+      </body>
+    </html>
+  );
+}
+
+// clientLoaderが走ってるときの出力
+// ついでにこれを定義しておくとconsoleの出力も消える
+export function HydrateFallback() {
+    return (
+        <main>
+            読み込み中...
+        </main>
+    );
+}
 
 export default function App() {
   return (
@@ -50,19 +76,7 @@ function Inner () {
   }, [colorModeObj]);
 
   return (
-    <html lang="ja">
-      <head>
-        <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <Meta />
-        <Links />
-      </head>
-      <body>
-        <Scripts />
-        <Outlet />
-        <ScrollRestoration />
-      </body>
-    </html>
+      <Outlet />
   );
 }
 

@@ -13,8 +13,6 @@ void main() {
     defaultPoolThreads(10);
 
     while (true) {
-        stderr.writeln("polling...");
-
         // db監視 -> 新規ジャッジタスクをput
         createCompileTasks();
         Thread.sleep(pollingInterval);
