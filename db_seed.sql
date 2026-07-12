@@ -116,7 +116,7 @@ INSERT INTO submissions (
     1,
     1,
     'const input = await Deno.readTextFile("/dev/stdin"); const A = input.split("\n")[0].split(" ").map(x => parseInt(x)); console.log(A[0] + A[1]);',
-    'Typescript',
+    'TypeScript',
     'pending'
 );
 
