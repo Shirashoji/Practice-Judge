@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from 'react-router';
+import { useNavigate, redirect } from 'react-router';
 import { BASEURL } from '../backend_url';
 import { isValidUsername, isValidPassword } from '../utils';
 
@@ -9,6 +9,16 @@ export function meta({}: Route.MetaArgs) {
   ];
 }
 
+export async function clientLoader() {
+  const res = await fetch(new URL("/api/auth/me", BASEURL).href, {
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (data.login) {
+    return redirect("/");
+  }
+  return null;
+}
 
 export default function SignUpPage() {
   const [username, setUsername] = useState("");
@@ -43,7 +53,7 @@ export default function SignUpPage() {
       });
 
       if (res.status === 202) {
-          navigate("/");
+          navigate("/", { replace: true });
       } else {
         const data = await res.json();
         setError(data.error || "登録に失敗しました");

@@ -1,11 +1,22 @@
 import { useState } from "react";
-import { useNavigate } from 'react-router';
+import { useNavigate, redirect } from 'react-router';
 import { BASEURL } from '../backend_url';
 
 export function meta({}: Route.MetaArgs) {
   return [
     { title: "ログイン - Practice Judge" },
   ];
+}
+
+export async function clientLoader() {
+  const res = await fetch(new URL("/api/auth/me", BASEURL).href, {
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (data.login) {
+    return redirect("/");
+  }
+  return null;
 }
 
 export default function LoginPage () {
@@ -19,7 +30,7 @@ export default function LoginPage () {
     e.preventDefault();
     setError(null);
     setLoading(true);
-
+ 
     try {
       const res = await fetch(new URL("/api/auth/login", BASEURL).href, {
         method: "POST",
@@ -27,10 +38,9 @@ export default function LoginPage () {
         body: JSON.stringify({ username, password }),
         credentials: 'include',
       });
-
+ 
       if (res.status === 202) {
-          // 強制リロードさせたい
-          window.location.href = "/";
+          navigate("/", { replace: true });
       } else {
         const data = await res.json();
         setError(data.error || "ログインに失敗しました");
