@@ -1,0 +1,35 @@
+# 開発用の上書き定義（docker compose up で自動的にcompose.yamlへマージされる）
+# - api/frontのソースをバインドマウントしてホットリロード
+# - ポートは127.0.0.1バインド（LAN内の他端末から到達できないように）
+# - judgeはコンパイル言語のため上書きしない。
+#   変更を反映するには: docker compose build judge && docker compose up -d judge
+
+volumes:
+  api_node_modules:
+  front_node_modules:
+
+services:
+  api:
+    command: ["node", "--watch", "app.js"]
+    ports: !override
+      - "127.0.0.1:8181:8181"
+    environment:
+      FRONTURL: http://localhost:${FRONT_DEV_PORT:-5173}
+    volumes:
+      - ./api:/app/api
+      - api_node_modules:/app/api/node_modules
+      - dbdata:/data
+      - ./static:/app/static:ro
+      - ./DB_BACKUP:/app/DB_BACKUP
+
+  front:
+    # devサーバ(vite)で起動。本番イメージにはdevDependenciesが無いのでnpm installで補う。
+    command: ["sh", "-c", "npm install && npm run dev -- --host"]
+    # 5173が他プロジェクトと衝突する場合は .env で FRONT_DEV_PORT を変更する
+    ports: !override
+      - "127.0.0.1:${FRONT_DEV_PORT:-5173}:5173"
+    environment:
+      BACKEND_INTERNAL_URL: http://api:8181
+    volumes:
+      - ./front:/app
+      - front_node_modules:/app/node_modules

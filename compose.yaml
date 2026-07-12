@@ -1,0 +1,98 @@
+# Practice-Judge 全体構成（本番相当のベース定義）
+#
+#   開発（ホットリロード付き。compose.override.yamlが自動で重なる）:
+#     docker compose up
+#   本番相当（overrideを読まない）:
+#     docker compose -f compose.yaml up -d
+#   初回のシードデータ投入:
+#     docker compose run --rm -e SEED=1 db-init
+#
+# ジャッジはDocker-outside-of-Docker方式:
+# judgeコンテナが /var/run/docker.sock 経由でサンドボックス（judge-envイメージ）を
+# 兄弟コンテナとして生成する。cgroupの読み取り（メモリ・時間計測）は
+# judgeコンテナ自体がLinux（macOSではDocker DesktopのVM）内で動くため、
+# ホストOSに関係なく /sys/fs/cgroup から行える。
+
+name: practice-judge
+
+volumes:
+  dbdata:
+
+services:
+  # judge-envイメージのビルド専用サービス（何もせず即終了する）
+  judge-env-image:
+    build:
+      context: .
+      dockerfile: docker_judge
+    image: judge-env
+    entrypoint: ["/bin/true"]
+    restart: "no"
+
+  # DBスキーマの適用（冪等）。SEED=1でシードデータも投入。
+  db-init:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    image: practice-judge-api
+    command: ["node", "tools/init_db.js"]
+    environment:
+      DB_PATH: /data/data.db
+    volumes:
+      - dbdata:/data
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    image: practice-judge-api
+    ports:
+      - "8181:8181" # SPAのフロントがブラウザから直接叩くためホスト公開が必要
+    environment:
+      DB_PATH: /data/data.db
+      SESSION_DB_PATH: /data/sessions.db
+      SESSION_SECRET: ${SESSION_SECRET:-dev-secret}
+      FRONTURL: ${FRONTURL:-http://localhost:3000}
+      # NODE_ENV=productionはcookieのsecure=trueを強制するため、
+      # http+localhostで動かすローカル構成では設定しない。
+      # HTTPS付きの実デプロイ時は .env で NODE_ENV=production を設定すること。
+      NODE_ENV: ${NODE_ENV:-}
+    volumes:
+      - dbdata:/data
+      - ./static:/app/static:ro
+      - ./DB_BACKUP:/app/DB_BACKUP
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  judge:
+    build: ./judge-system
+    environment:
+      DB_PATH: /data/data.db
+    # ホスト（VM）のcgroup名前空間を使い、サンドボックスのcgroupを見えるようにする
+    cgroup: host
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+      - dbdata:/data
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+      judge-env-image:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  front:
+    build:
+      context: ./front
+      args:
+        VITE_BASEURL: ${VITE_BASEURL:-http://localhost:8181}
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: "3000"
+      BACKENDURL: http://api:8181 # /staticのプロキシはserve.js（サーバ側）が行うため内部DNSでよい
+    depends_on:
+      - api
+    restart: unless-stopped
