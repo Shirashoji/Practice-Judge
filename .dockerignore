@@ -1,0 +1,14 @@
+# リポジトリルートをビルドコンテキストにするビルド（api/Dockerfile, docker_judge）用。
+# front/ は自前のコンテキスト(front/)と.dockerignoreを使うのでここの影響を受けない。
+.git
+**/node_modules
+front
+judge-system
+static
+DB_BACKUP
+data.db*
+api/sessions.db*
+api/.env
+api/uploads/tmp*
+compose.yaml
+compose.override.yaml
