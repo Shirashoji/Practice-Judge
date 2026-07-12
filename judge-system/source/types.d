@@ -24,6 +24,7 @@ struct Container {
     void createNew (string cmd) {
         auto args = [
             "docker", "container", "create",
+            "--label", "practice-judge.sandbox=1",
             "--memory", format("%sk", memoryLimitKb),
             "--memory-swap", format("%sk", memoryLimitKb),
             "--env NO_COLOR=true",
@@ -36,16 +37,23 @@ struct Container {
             cmd,
         ];
         string concated = args.fold!((a, b) => a ~ " " ~ b)("");
-        containerId = executeShell(concated).output.strip;
+        auto res = executeShell(concated);
+        if (res.status != 0) {
+            stderr.writeln("docker container create failed: ", res.output);
+        }
+        containerId = res.output.strip;
     }
 
     void copyFileToContainer (string hostAbsPath, string containerAbsPath) {
         if (containerId != "") {
-            execute([
+            auto ret = execute([
                 "docker", "container", "cp",
                 hostAbsPath,
                 format("%s:%s", containerId, containerAbsPath)
             ]);
+            if (ret.status != 0) {
+                stderr.writeln("docker container cp (to container) failed: ", ret.output);
+            }
         }
     }
 
@@ -56,6 +64,9 @@ struct Container {
                 format("%s:%s", containerId, containerAbsPath),
                 hostAbsPath
             ]);
+            if (ret.status != 0) {
+                stderr.writeln("docker container cp (from container) failed: ", ret.output);
+            }
         }
     }
 
