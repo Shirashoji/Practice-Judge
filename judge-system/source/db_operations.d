@@ -2,6 +2,7 @@ module db_operations;
 
 import std.format;
 import std.path;
+import std.process : environment;
 import std.stdio;
 import std.range;
 import core.thread;
@@ -12,7 +13,7 @@ import types;
 import constants;
 
 void initDbConnection (ref Database db) {
-    const string dbFileName = buildPath("..", "data.db");
+    const string dbFileName = environment.get("DB_PATH", buildPath("..", "data.db"));
     db = Database(dbFileName);
     db.execute("PRAGMA busy_timeout = 5000;");
     db.execute("PRAGMA journal_mode = WAL;");

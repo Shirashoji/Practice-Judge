@@ -13,6 +13,7 @@
     "@react-router/node": "^7.9.2",
     "@react-router/serve": "^7.9.2",
     "ace-builds": "^1.43.5",
+    "express": "^4.21.2",
     "html-react-parser": "^5.2.10",
     "http-proxy-middleware": "^3.0.5",
     "isbot": "^5.1.31",
