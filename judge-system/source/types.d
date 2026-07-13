@@ -39,7 +39,10 @@ struct Container {
         string concated = args.fold!((a, b) => a ~ " " ~ b)("");
         auto res = executeShell(concated);
         if (res.status != 0) {
+            // 失敗時のoutputはエラーメッセージなのでcontainerIdに入れない
             stderr.writeln("docker container create failed: ", res.output);
+            containerId = "";
+            return;
         }
         containerId = res.output.strip;
     }
@@ -79,8 +82,14 @@ struct Container {
     }
 
     ExecuteResult run (File stdinFile, File stdoutFile, File stderrFile, Duration timeLimit) {
-        auto pid = spawnShell(format("docker container start --interactive %s", containerId), stdinFile, stdoutFile, stderrFile);
         ExecuteResult ret;
+        if (containerId == "") {
+            // コンテナ生成に失敗している場合は起動せず失敗扱いにする
+            stderr.writeln("container does not exist. skipping run.");
+            ret.status = -1;
+            return ret;
+        }
+        auto pid = spawnShell(format("docker container start --interactive %s", containerId), stdinFile, stdoutFile, stderrFile);
 
         void keep () {
             auto begin = Clock.currTime();
