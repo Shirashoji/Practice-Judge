@@ -25,4 +25,6 @@ COPY ./package.json package-lock.json serve.js /app/
 COPY --from=production-dependencies-env /app/node_modules /app/node_modules
 COPY --from=build-env /app/build/client /app/build/client
 WORKDIR /app
+# compose以外で単体実行してもREADME通りのポートで動くようにデフォルトを持たせる
+ENV PORT=3000
 CMD ["node", "serve.js"]

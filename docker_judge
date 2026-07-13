@@ -24,7 +24,9 @@ USER runner
 # amd64: dmd-2.111.0
 # それ以外(arm64等): dmdが存在しないため、同じフロントエンドのldc-1.41.0を使い、
 #                    dmd互換CLIのldmd2をdmdとして呼べるようにする
-RUN if [ "$TARGETARCH" = "amd64" ]; then \
+# TARGETARCHはBuildKit以外では未設定になるため、dpkgでフォールバック判定する
+RUN ARCH="${TARGETARCH:-$(dpkg --print-architecture)}" \
+    && if [ "$ARCH" = "amd64" ]; then \
         curl -fsS https://dlang.org/install.sh | bash -s dmd-2.111.0; \
     else \
         curl -fsS https://dlang.org/install.sh | bash -s ldc-1.41.0 \
