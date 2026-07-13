@@ -33,7 +33,7 @@ void main () {
         }
     }
     catch (Exception e) {
-        throw new Exception(readText("in_user"));
+        // 出力が整数として読めない（空・非数値など）場合はWA
         wa = true;
     }
 
