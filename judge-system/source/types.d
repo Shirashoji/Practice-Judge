@@ -24,6 +24,7 @@ struct Container {
     void createNew (string cmd) {
         auto args = [
             "docker", "container", "create",
+            "--label", "practice-judge.sandbox=1",
             "--memory", format("%sk", memoryLimitKb),
             "--memory-swap", format("%sk", memoryLimitKb),
             "--env NO_COLOR=true",
@@ -36,16 +37,26 @@ struct Container {
             cmd,
         ];
         string concated = args.fold!((a, b) => a ~ " " ~ b)("");
-        containerId = executeShell(concated).output.strip;
+        auto res = executeShell(concated);
+        if (res.status != 0) {
+            // 失敗時のoutputはエラーメッセージなのでcontainerIdに入れない
+            stderr.writeln("docker container create failed: ", res.output);
+            containerId = "";
+            return;
+        }
+        containerId = res.output.strip;
     }
 
     void copyFileToContainer (string hostAbsPath, string containerAbsPath) {
         if (containerId != "") {
-            execute([
+            auto ret = execute([
                 "docker", "container", "cp",
                 hostAbsPath,
                 format("%s:%s", containerId, containerAbsPath)
             ]);
+            if (ret.status != 0) {
+                stderr.writeln("docker container cp (to container) failed: ", ret.output);
+            }
         }
     }
 
@@ -56,6 +67,9 @@ struct Container {
                 format("%s:%s", containerId, containerAbsPath),
                 hostAbsPath
             ]);
+            if (ret.status != 0) {
+                stderr.writeln("docker container cp (from container) failed: ", ret.output);
+            }
         }
     }
 
@@ -68,8 +82,14 @@ struct Container {
     }
 
     ExecuteResult run (File stdinFile, File stdoutFile, File stderrFile, Duration timeLimit) {
-        auto pid = spawnShell(format("docker container start --interactive %s", containerId), stdinFile, stdoutFile, stderrFile);
         ExecuteResult ret;
+        if (containerId == "") {
+            // コンテナ生成に失敗している場合は起動せず失敗扱いにする
+            stderr.writeln("container does not exist. skipping run.");
+            ret.status = -1;
+            return ret;
+        }
+        auto pid = spawnShell(format("docker container start --interactive %s", containerId), stdinFile, stdoutFile, stderrFile);
 
         void keep () {
             auto begin = Clock.currTime();

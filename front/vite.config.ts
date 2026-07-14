@@ -8,10 +8,11 @@ export default defineConfig({
 
   // 開発モードでは/staticをviteのserverがproxyする。
   // 本番モードではexpressのサーバスクリプトで同じことをやる。
+  // コンテナ内から動かす場合はBACKEND_INTERNAL_URLでapiコンテナを指す。
   server: {
       proxy: {
           "/static": {
-              target: "http://localhost:8181/",
+              target: process.env.BACKEND_INTERNAL_URL || "http://localhost:8181/",
               changeOrigin: true
           }
       }

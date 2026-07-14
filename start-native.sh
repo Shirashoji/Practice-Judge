@@ -8,7 +8,7 @@
 
 # --- 設定エリア ---
 # このスクリプトを実行すべきディレクトリの名前
-EXPECTED_DIR_NAME="online-judge" 
+EXPECTED_DIR_NAME="Practice-Judge"
 SESSION_NAME="PracticeJudge"
 
 IMAGE_NAME="judge-env"
@@ -52,7 +52,7 @@ function ensure_db() {
         sqlite3 "$DB_FILE" < "$DB_MODEL"
     fi
 
-    if [ ! -f "$DB_BACKUP_DIR" ]; then
+    if [ ! -d "$DB_BACKUP_DIR" ]; then
         echo "${DB_BACKUP_DIR}がないため、作成します。"
         mkdir -p "$DB_BACKUP_DIR"
     fi

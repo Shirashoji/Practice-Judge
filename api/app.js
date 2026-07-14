@@ -9,7 +9,7 @@ dotenv.config();
 
 const session = require('express-session');
 const SqliteStore = require('better-sqlite3-session-store')(session);
-const sessionDb = new sqlite3("sessions.db");
+const sessionDb = new sqlite3(process.env.SESSION_DB_PATH || path.resolve(__dirname, "sessions.db"));
 
 const app = express();
 const port = 8181;

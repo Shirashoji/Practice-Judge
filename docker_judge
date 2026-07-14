@@ -2,6 +2,7 @@
 # docker build -f docker_judge -t judge-env .
 
 FROM ubuntu:24.04
+ARG TARGETARCH
 
 # c c++ python3
 RUN apt-get update \
@@ -19,16 +20,26 @@ RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
 RUN useradd -m runner
 USER runner
 
-# D言語(dmd-2.111.0)
-RUN curl -fsS https://dlang.org/install.sh | bash -s dmd-2.111.0
+# D言語
+# amd64: dmd-2.111.0
+# それ以外(arm64等): dmdが存在しないため、同じフロントエンドのldc-1.41.0を使い、
+#                    dmd互換CLIのldmd2をdmdとして呼べるようにする
+# TARGETARCHはBuildKit以外では未設定になるため、dpkgでフォールバック判定する
+RUN ARCH="${TARGETARCH:-$(dpkg --print-architecture)}" \
+    && if [ "$ARCH" = "amd64" ]; then \
+        curl -fsS https://dlang.org/install.sh | bash -s dmd-2.111.0; \
+    else \
+        curl -fsS https://dlang.org/install.sh | bash -s ldc-1.41.0 \
+        && ln -s /home/runner/dlang/ldc-1.41.0/bin/ldmd2 /home/runner/dlang/ldc-1.41.0/bin/dmd; \
+    fi
 
 # typescript(Deno v2.5.4）
 RUN curl -fsSL https://deno.land/x/install/install.sh | bash -s v2.5.4
 
-# 環境変数
-ENV LIBRARY_PATH=/home/runner/dlang/dmd-2.111.0/linux/lib64 \
-    LD_LIBRARY_PATH=/home/runner/dlang/dmd-2.111.0/linux/lib64 \
-    PATH=/home/runner/.deno/bin:/home/runner/dlang/dmd-2.111.0/linux/bin64:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+# 環境変数(dmd/ldcのパスは存在する方だけが使われる。無い方は無害)
+ENV LIBRARY_PATH=/home/runner/dlang/dmd-2.111.0/linux/lib64:/home/runner/dlang/ldc-1.41.0/lib \
+    LD_LIBRARY_PATH=/home/runner/dlang/dmd-2.111.0/linux/lib64:/home/runner/dlang/ldc-1.41.0/lib \
+    PATH=/home/runner/.deno/bin:/home/runner/dlang/dmd-2.111.0/linux/bin64:/home/runner/dlang/ldc-1.41.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 
 WORKDIR /home/runner/work
