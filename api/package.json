@@ -12,7 +12,7 @@
     "@react-router/express": "^7.9.6",
     "adm-zip": "^0.5.16",
     "bcrypt": "^6.0.0",
-    "better-sqlite3": "^12.4.1",
+    "better-sqlite3": "^13.0.3",
     "better-sqlite3-session-store": "^0.1.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
