@@ -7,6 +7,7 @@ import renderMathInElement from '../auto-render';
 import { AceEditorWritable } from '../ace_editor';
 
 import { createPrompt } from '../prompt.ts';
+import { AdvicePanel } from '../llm/AdvicePanel';
 
 export function meta({ data }: Route.MetaArgs) {
     const title = data?.title ?? "問題が見つかりません";
@@ -47,6 +48,7 @@ export default function Page({ params, loaderData }) {
     const [language, setLanguage] = useState("");
     const [submitting, setSubmitting] = useState(false);
     const [message, setMessage] = useState("");
+    const [showAdvice, setShowAdvice] = useState(false);
     const navigate = useNavigate();
     const problem = loaderData;
     const { loginInfo } = useOutletContext();
@@ -169,6 +171,31 @@ export default function Page({ params, loaderData }) {
                 </p>
 
                 <hr />
+
+                {/* アプリ内のAI学習支援。ログイン時のみ。 */}
+                {loginInfo.login && (
+                    <div style={{ marginBottom: "1em" }}>
+                        {!showAdvice && (
+                            <>
+                                <button type="button" onClick={() => setShowAdvice(true)}>
+                                    解き方のヒントをもらう🤖
+                                </button>
+                                <p className="llm-note">
+                                    答えは教えてもらえません。どこで詰まっているかを聞いたうえで、次の一歩だけを教えてくれます。
+                                </p>
+                            </>
+                        )}
+                        {showAdvice && (
+                            <AdvicePanel
+                                problemId={Number(params.problemId)}
+                                skillId="pre_ac_advice"
+                                onClose={() => setShowAdvice(false)}
+                            />
+                        )}
+                    </div>
+                )}
+
+                <p className="llm-note">外部のAIサービスに貼り付けて使いたい場合はこちら:</p>
 
                 <AIhelpButton
                     onClick={() => navigator.clipboard.writeText(createPrompt(promptHTML))}

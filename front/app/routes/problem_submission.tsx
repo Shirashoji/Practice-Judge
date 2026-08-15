@@ -1,8 +1,12 @@
 import { useState, useEffect, useRef } from "react";
-import { Link } from "react-router";
+import { Link, useOutletContext } from "react-router";
 import { BASEURL } from "../backend_url";
 import { AceEditorReadOnly } from "../ace_editor.tsx";
 import { toJST } from '../utils';
+import { AdvicePanel } from '../llm/AdvicePanel';
+
+// ジャッジが終わった状態。判定中はAIに相談させても実行結果が無く意味がない。
+const FINISHED_STATUSES = ["AC", "WA", "CE", "RE", "TLE", "MLE", "OLE", "IE"];
 
 export async function clientLoader ({ params }) {
     const res = await fetch(new URL(`/api/problems/no/${params.problemId}/submissions/${params.submissionId}`, BASEURL).href, {
@@ -51,13 +55,14 @@ export default function Page({ loaderData, params }) {
     }, [submission]);
 
     const [expandCode, setExpandCode] = useState(false);
+    const [showAdvice, setShowAdvice] = useState(false);
     const problemId = params.problemId;
+    const { loginInfo } = useOutletContext();
 
     useEffect(() => {
         let ignore = false;
         const interval = setInterval(async () => {
-            const finishedStatuses = ["AC", "WA", "CE", "RE", "TLE", "MLE", "OLE", "IE"];
-            if (finishedStatuses.indexOf(submissionRef.current.whole.status) == -1) {
+            if (FINISHED_STATUSES.indexOf(submissionRef.current.whole.status) == -1) {
                 const res = await fetch(new URL(`/api/problems/no/${params.problemId}/submissions/${params.submissionId}`, BASEURL).href, {
                     credentials: 'include',
                 });
@@ -184,6 +189,35 @@ export default function Page({ loaderData, params }) {
                 </tbody>
             </table>
         </article>
+
+        {/* AI学習支援への導線。自分の提出で、ジャッジが終わっているときだけ出す。 */}
+        {loginInfo?.login && loginInfo.username === whole.username
+            && FINISHED_STATUSES.indexOf(whole.status) !== -1 && (
+            <article>
+                <h3>AIに相談する</h3>
+                {!showAdvice && (
+                    <>
+                        <button type="button" onClick={() => setShowAdvice(true)}>
+                            {whole.status === "AC"
+                                ? "コードの改善点を提案してもらう"
+                                : "どこが間違っているかヒントをもらう"}
+                        </button>
+                        <p className="llm-note">
+                            {whole.status === "AC"
+                                ? "公式解説と見比べながら、書き方の改善点を教えてもらえます。"
+                                : "答えそのものは教えてもらえません。どこを疑うべきかのヒントが出ます。"}
+                        </p>
+                    </>
+                )}
+                {showAdvice && (
+                    <AdvicePanel
+                        problemId={Number(problemId)}
+                        submissionId={whole.id}
+                        onClose={() => setShowAdvice(false)}
+                    />
+                )}
+            </article>
+        )}
 
         {whole.message && (
             <article>
