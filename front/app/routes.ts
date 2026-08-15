@@ -59,6 +59,13 @@ export default [
             route("/control-panel/problemsets/no/:problemsetId/set", "routes/control_panel_problemset_set.tsx"),
 
             route("/control-panel/users", "routes/control_panel_users.tsx"),
+
+            // AI学習支援の管理
+            route("/control-panel/llm", "routes/control_panel_llm.tsx"),
+            route("/control-panel/llm/limits", "routes/control_panel_llm_limits.tsx"),
+            route("/control-panel/llm/violations", "routes/control_panel_llm_violations.tsx"),
+            route("/control-panel/llm/conversations", "routes/control_panel_llm_conversations.tsx"),
+            route("/control-panel/llm/conversations/:conversationId", "routes/control_panel_llm_conversation.tsx"),
         ]),
     ]),
 ];
