@@ -88,6 +88,17 @@ app.set('query parser', "extended");
 const { setSchedule } = require('./cronjob.js');
 setSchedule();
 
+// LLM機能の全体設定（上限金額・モデルマッピング等）の初期値をDBに投入する。
+// 既にあるキーは上書きしないので、何度起動しても管理画面での変更は保たれる。
+const llmConfig = require('./llm/config.js');
+llmConfig.ensureDefaults();
+if (llmConfig.isConfigured()) {
+    console.log(`AI学習支援: 有効（provider=${llmConfig.PROVIDER}）`);
+}
+else {
+    console.log('AI学習支援: 無効（APIキー未設定のため、LLMのエンドポイントのみ503を返します）');
+}
+
 // cors設定
 const FRONTURL = process.env.FRONTURL;
 app.use(cors({
@@ -142,6 +153,12 @@ apiRouter.use('/users', usersRouter);
 
 const { rankingRouter } = require('./ranking.js');
 apiRouter.use('/ranking', rankingRouter);
+
+const { llmRouter } = require('./llm.js');
+apiRouter.use('/llm', llmRouter);
+
+const { adminLlmRouter } = require('./admin_llm.js');
+apiRouter.use('/admin/llm', adminLlmRouter);
 
 app.use('/api', apiRouter);
 
