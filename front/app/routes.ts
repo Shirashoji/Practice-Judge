@@ -28,6 +28,14 @@ export default [
         route("/problemsets/", "routes/problemsets.tsx"),
         route("/problemsets/no/:problemsetId", "routes/problemset_page.tsx"),
 
+        // ↓AI学習支援のチャット専用画面
+        layout("routes/login_layout.tsx", { id: "llm_login_guard" }, [
+            route("/llm/chat/:conversationId", "routes/llm_chat.tsx"),
+        ]),
+
+        // ↓プライバシーポリシー
+        route("/privacy-policy", "routes/privacy_policy.tsx"),
+
         // ↓提出一覧
         route("/submissions", "routes/submissions.tsx"),
 

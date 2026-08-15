@@ -28,6 +28,13 @@ export default function Outer ({ loaderData }) {
         <div className="maincontents">
             <Outlet context={{ loginInfo }} />
         </div>
+
+        <footer className="container">
+            <hr />
+            <small>
+                <Link to="/privacy-policy">プライバシーポリシー</Link>
+            </small>
+        </footer>
     </>
     );
 }
