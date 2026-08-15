@@ -2,9 +2,11 @@
 # ビルドコンテキストはリポジトリルート（models.sql/db_seed.sqlを取り込むため）
 # docker build -f api/Dockerfile -t practice-judge-api .
 
-FROM node:20-bookworm-slim
+FROM node:26-bookworm-slim
 
-# better-sqlite3等のネイティブモジュールをビルドできるようにしておく
+# better-sqlite3 v13 / bcrypt はN-APIのプリビルドバイナリを同梱しており、
+# 通常はソースビルドされない。ただしプリビルドが無い環境（別アーキテクチャ等）へ
+# フォールバックできるよう、ビルドツールは残しておく。
 RUN apt-get update \
     && apt-get install -y --no-install-recommends python3 make g++ \
     && rm -rf /var/lib/apt/lists/*
