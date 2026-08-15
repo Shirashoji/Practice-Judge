@@ -2,3 +2,5 @@
 /data.db-shm
 /data.db-wal
 /.env
+.codex/
+secrets/
