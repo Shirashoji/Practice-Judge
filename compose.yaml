@@ -57,6 +57,13 @@ services:
       # http+localhostで動かすローカル構成では設定しない。
       # HTTPS付きの実デプロイ時は .env で NODE_ENV=production を設定すること。
       NODE_ENV: ${NODE_ENV:-}
+      # LLM学習支援機能。未設定でもAPIは起動し、LLM機能だけが無効になる。
+      LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      VERTEX_PROJECT_ID: ${VERTEX_PROJECT_ID:-}
+      VERTEX_REGION: ${VERTEX_REGION:-}
+      LLM_MODEL_CHAT: ${LLM_MODEL_CHAT:-}
+      LLM_MODEL_CLASSIFY: ${LLM_MODEL_CLASSIFY:-}
     volumes:
       - dbdata:/data
       - ./static:/app/static:ro

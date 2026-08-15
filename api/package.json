@@ -9,6 +9,8 @@
   "license": "MIT",
   "description": "online-judge backend api",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.117.1",
+    "@anthropic-ai/vertex-sdk": "^0.19.4",
     "@react-router/express": "^7.9.6",
     "adm-zip": "^0.5.16",
     "bcrypt": "^6.0.0",
