@@ -1,4 +1,7 @@
-// OpenAI互換サーバ（LM Studio / Ollama / llama.cpp のserver など）
+// OpenAI と OpenAI互換サーバ（LM Studio / Ollama / llama.cpp のserver など）
+//
+// 本家OpenAIとローカルサーバを同じアダプタで扱う。差分はエンドポイント・認証・
+// パラメータ名だけで、メッセージとツールの形は同一だから。
 //
 // SDKを足さずfetchで直接叩く。OpenAI互換の /chat/completions は形が安定していて、
 // 使うのはstreamとtoolsだけなので、依存を1つ増やすほどの複雑さが無い。
@@ -131,12 +134,23 @@ async function runStream (opts, params, emitText) {
     const body = {
         model: params.model,
         messages: toMessages(params.system, params.messages),
-        max_tokens: params.max_tokens,
         stream: true,
         // これを付けないと最終チャンクにusageが載らない実装が多い。
         // ローカルは単価0なので金額には効かないが、使用量の記録は残したい。
         stream_options: { include_usage: true },
     };
+
+    // GPT-5世代のChat Completionsは max_tokens を受け付けず
+    // max_completion_tokens を要求する。ローカルサーバ側は逆に
+    // max_completion_tokens を知らない実装があるので、経路ごとに使い分ける。
+    body[opts.maxTokensField] = params.max_tokens;
+
+    // reasoning_effortに対応しているモデルにだけ送る。
+    // ローカルモデルは登録簿でeffort: falseなので送られない。
+    if (config.getCapabilities(params.model).effort && params.effort != null) {
+        body.reasoning_effort = params.effort;
+    }
+
     const tools = toTools(params.tools);
     if (tools != null) {
         body.tools = tools;
@@ -153,7 +167,7 @@ async function runStream (opts, params, emitText) {
 
     if (!res.ok || res.body == null) {
         const detail = await res.text().catch(() => '');
-        throw new Error(`ローカルLLM(${opts.baseUrl})が${res.status}を返しました: ${detail.slice(0, 500)}`);
+        throw new Error(`${opts.label}(${opts.baseUrl})が${res.status}を返しました: ${detail.slice(0, 500)}`);
     }
 
     let text = '';
@@ -212,7 +226,7 @@ async function runStream (opts, params, emitText) {
         catch (e) {
             // 引数が壊れていてもターンを落とさない。空引数で実行させれば
             // ツール側が検証エラーを返し、モデルが次のターンで直せる。
-            console.error(`ローカルLLMのツール引数を解析できませんでした（${acc.name}）:`, acc.args);
+            console.error(`${opts.label}のツール引数を解析できませんでした（${acc.name}）:`, acc.args);
         }
         content.push({
             type: 'tool_use',
@@ -239,11 +253,32 @@ async function runStream (opts, params, emitText) {
     };
 }
 
-function create () {
+function createOptions (provider) {
+    if (provider === 'openai') {
+        if (config.OPENAI_API_KEY === '') {
+            throw new Error('OPENAI_API_KEY が設定されていません。');
+        }
+        return {
+            label: 'OpenAI',
+            baseUrl: config.OPENAI_BASE_URL,
+            apiKey: config.OPENAI_API_KEY,
+            maxTokensField: 'max_completion_tokens',
+        };
+    }
+
     if (config.LOCAL_BASE_URL === '') {
         throw new Error('LOCAL_LLM_BASE_URL が設定されていません。');
     }
-    const opts = { baseUrl: config.LOCAL_BASE_URL, apiKey: config.LOCAL_API_KEY };
+    return {
+        label: 'ローカルLLM',
+        baseUrl: config.LOCAL_BASE_URL,
+        apiKey: config.LOCAL_API_KEY,
+        maxTokensField: 'max_tokens',
+    };
+}
+
+function create (provider) {
+    const opts = createOptions(provider);
 
     return {
         messages: {

@@ -144,14 +144,22 @@ VERTEX_REGION=global
 # Gemini だけを Gemini Developer API で（Vertexを使わない場合）
 GEMINI_API_KEY=...
 
+# OpenAI（OPENAI_BASE_URLを差し替えればAzure OpenAIやOpenRouterも指せる）
+OPENAI_API_KEY=sk-...
+
 # ローカルLLM（LM Studio等のOpenAI互換サーバ）
 LOCAL_LLM_BASE_URL=http://host.docker.internal:1234/v1
 LOCAL_LLM_MODELS=qwen/qwen3-coder-30b
 ```
 
-`LLM_PROVIDER` が決めるのは**Claudeの経路だけ**で、Geminiとローカルの経路には影響しない。
+`LLM_PROVIDER` が決めるのは**Claudeの経路だけ**で、他の経路には影響しない。
 Geminiは `VERTEX_PROJECT_ID` があればVertex経由、無ければ `GEMINI_API_KEY` で
-Gemini Developer API経由になる。3系統を同時に有効にして、ユーザーに選ばせることもできる。
+Gemini Developer API経由になる。4系統を同時に有効にして、ユーザーに選ばせることもできる。
+
+OpenAIとローカルLLMは同じOpenAI互換アダプタで喋る。差分はエンドポイント・認証と、
+GPT-5世代が `max_tokens` ではなく `max_completion_tokens` を要求する点だけ
+（ローカルサーバ側は逆に `max_completion_tokens` を知らない実装があるので使い分ける）。
+`reasoning_effort` は対応モデルにだけ送る。
 
 ローカルLLMのモデルは自動検出せず `LOCAL_LLM_MODELS` に列挙する。
 起動時にLM Studioが落ちていると選択肢が空のままAPIが立ち上がってしまうため。
@@ -228,6 +236,9 @@ const messages = rows.map(r => ({ role: r.role, content: JSON.parse(r.content_js
 `api/llm/providers/` に経路ごとのアダプタを置き、`api/llm/client.js` がモデルから選ぶ。
 プロバイダを全体で1つに固定していないのは、「Vertex経由のClaude ＋ Vertex経由のGemini ＋
 手元のLM Studio」のような混在構成を成立させるため。会話ごとに`llm_conversations.provider`へ記録する。
+
+アダプタは3つで4経路をまかなう。OpenAIとローカルLLMは同じ`openai_compat.js`が担当する
+（プロトコルが同一で、違うのはエンドポイントとパラメータ名だけなので分ける理由が無い）。
 
 **共通の面はAnthropicのMessages API形式に固定した**（`{content配列, stop_reason, usage}`）。
 中立的な独自の中間表現を作らなかったのは、会話ログがMessages APIの`content`配列そのもので、

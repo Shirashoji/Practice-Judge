@@ -19,6 +19,13 @@ const VERTEX_REGION = process.env.VERTEX_REGION || 'global';
 // Vertexを使わずGemini Developer APIを直接叩く場合のキー。
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 
+// OpenAI。ローカルLLMと同じOpenAI互換アダプタで喋る（差分はエンドポイントと
+// パラメータ名だけなので、SDKを足す必要が無い）。
+// BASE_URLを変えられるようにしてあるのは、Azure OpenAIやOpenRouterのような
+// 互換ゲートウェイをそのまま指せるようにするため。
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
+const OPENAI_BASE_URL = (process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
+
 // LM Studio等のOpenAI互換ローカルサーバ。
 // LM Studioの既定は http://localhost:1234/v1 だが、APIはコンテナの中で動くので
 // ホスト側のLM Studioを指すなら http://host.docker.internal:1234/v1 になる。
@@ -67,6 +74,13 @@ const BUILTIN_MODELS = {
     'gemini-2.5-pro':         { family: 'gemini', input: 1.25, output: 10.00 },
     'gemini-2.5-flash':       { family: 'gemini', input: 0.30, output: 2.50 },
     'gemini-2.5-flash-lite':  { family: 'gemini', input: 0.10, output: 0.40 },
+
+    // GPT-5世代はreasoning_effortを受け取るのでeffort: trueにする。
+    // Chat Completionsでは max_tokens ではなく max_completion_tokens を要求する点が
+    // 他と違う（openai_compatアダプタが吸収する）。
+    'gpt-5.6-sol':            { family: 'openai', input: 5.00, output: 30.00, effort: true },
+    'gpt-5.6-terra':          { family: 'openai', input: 2.50, output: 15.00, effort: true },
+    'gpt-5.6-luna':           { family: 'openai', input: 1.00, output: 6.00,  effort: true },
 };
 
 // ローカルモデルは実行コストが計上できない（電気代はAPI課金ではない）ので単価0で扱う。
@@ -139,6 +153,7 @@ function providerFor (model) {
     switch (getFamily(model)) {
         case 'claude': return claudeProvider();
         case 'gemini': return geminiProvider();
+        case 'openai': return 'openai';
         case 'local':  return 'local';
         default:       return null;
     }
@@ -150,6 +165,7 @@ function isProviderConfigured (provider) {
         case 'vertex-claude':
         case 'vertex-gemini': return VERTEX_PROJECT_ID !== '';
         case 'gemini-api':   return GEMINI_API_KEY !== '';
+        case 'openai':       return OPENAI_API_KEY !== '';
         // モデルの列挙まで揃って初めて使える。URLだけでは何も呼べない。
         case 'local':        return LOCAL_BASE_URL !== '' && LOCAL_MODELS.length > 0;
         default:             return false;
@@ -191,6 +207,14 @@ function describeProviders () {
             detail: gemini === 'vertex-gemini'
                 ? `project=${VERTEX_PROJECT_ID || '未設定'} / region=${VERTEX_REGION}`
                 : 'GEMINI_API_KEY',
+        },
+        {
+            id: 'openai',
+            label: 'OpenAI',
+            configured: isProviderConfigured('openai'),
+            detail: OPENAI_BASE_URL === 'https://api.openai.com/v1'
+                ? 'OPENAI_API_KEY'
+                : `OPENAI_API_KEY / ${OPENAI_BASE_URL}`,
         },
         {
             id: 'local',
@@ -313,6 +337,8 @@ module.exports = {
     VERTEX_PROJECT_ID,
     VERTEX_REGION,
     GEMINI_API_KEY,
+    OPENAI_API_KEY,
+    OPENAI_BASE_URL,
     LOCAL_BASE_URL,
     LOCAL_API_KEY,
     LOCAL_MODELS,

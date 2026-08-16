@@ -34,6 +34,7 @@ export function ErrorBoundary ({ error }) {
 const FAMILIES: [string, string][] = [
     ['claude', 'Claude'],
     ['gemini', 'Gemini'],
+    ['openai', 'OpenAI'],
     ['local', 'ローカルLLM'],
 ];
 

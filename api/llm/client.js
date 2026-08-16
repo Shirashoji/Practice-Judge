@@ -30,8 +30,9 @@ function build (provider) {
         case 'vertex-gemini':
         case 'gemini-api':
             return require('./providers/gemini.js').create(provider);
+        case 'openai':
         case 'local':
-            return require('./providers/openai_compat.js').create();
+            return require('./providers/openai_compat.js').create(provider);
         default:
             throw new Error(`未知のプロバイダです: ${provider}`);
     }
