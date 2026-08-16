@@ -92,12 +92,6 @@ setSchedule();
 // 既にあるキーは上書きしないので、何度起動しても管理画面での変更は保たれる。
 const llmConfig = require('./llm/config.js');
 llmConfig.ensureDefaults();
-if (llmConfig.isConfigured()) {
-    console.log(`AI学習支援: 有効（provider=${llmConfig.PROVIDER}）`);
-}
-else {
-    console.log('AI学習支援: 無効（APIキー未設定のため、LLMのエンドポイントのみ503を返します）');
-}
 
 // cors設定
 const FRONTURL = process.env.FRONTURL;
@@ -177,6 +171,24 @@ app.use('/api', apiRouter);
 
 
 
-app.listen(port, () => {
-    console.log(`api server listening on port ${port}`);
+async function start () {
+    // ADCはファイルだけでなくメタデータサーバやWorkload Identityにも存在しうるため、
+    // GoogleAuth自身に解決させてからLLMの利用可否を確定する。
+    await llmConfig.initializeVertexAuth();
+
+    if (llmConfig.isConfigured()) {
+        console.log(`AI学習支援: 有効（provider=${llmConfig.PROVIDER}）`);
+    }
+    else {
+        console.log('AI学習支援: 無効（利用可能な認証経路がないため、LLMのエンドポイントのみ503を返します）');
+    }
+
+    app.listen(port, () => {
+        console.log(`api server listening on port ${port}`);
+    });
+}
+
+start().catch((e) => {
+    console.error('APIサーバの起動に失敗しました:', e);
+    process.exitCode = 1;
 });

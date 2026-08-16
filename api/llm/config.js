@@ -81,6 +81,15 @@ function inspectCredentials (keyFile) {
 
 const VERTEX_CREDENTIALS = inspectCredentials(GOOGLE_APPLICATION_CREDENTIALS);
 
+// 鍵ファイルを明示しない場合に使うADCの検出結果。
+// GoogleAuth は、well-known file、Workload Identity、メタデータサーバなど
+// 対応する認証経路を解決し、アクセストークンを取得できるところまで確認する。API呼び出しや
+// モデル推論は行わないため、この確認自体にVertex AIの利用料金は発生しない。
+const VERTEX_ADC = {
+    state: VERTEX_CREDENTIALS.state === 'adc' ? 'unchecked' : 'not-used',
+    error: null,
+};
+
 // プロジェクトIDは明示指定を優先し、無ければ鍵ファイルのproject_idを使う。
 // 鍵を置いただけでVertex経路に乗るようにしておかないと、VERTEX_PROJECT_IDの
 // 書き忘れでGeminiが黙ってGemini Developer API側に落ちる（下のgeminiProviderを参照）。
@@ -105,6 +114,30 @@ function vertexAuthOptions () {
 function assertVertexCredentials () {
     if (VERTEX_CREDENTIALS.state === 'error') {
         throw new Error(`GOOGLE_APPLICATION_CREDENTIALS の鍵ファイルが使えません: ${VERTEX_CREDENTIALS.error}`);
+    }
+}
+
+// 起動時に一度だけADCを解決する。
+// VERTEX_PROJECT_IDが無い環境ではVertex経路自体を選ばないので問い合わせない。
+async function initializeVertexAuth () {
+    if (VERTEX_CREDENTIALS.state !== 'adc' || VERTEX_PROJECT_ID === '') {
+        return;
+    }
+
+    try {
+        const { GoogleAuth } = require('google-auth-library');
+        const auth = new GoogleAuth({ scopes: [VERTEX_SCOPE] });
+        const client = await auth.getClient();
+        const token = await client.getAccessToken();
+        if (token == null || (typeof token === 'object' ? token.token : token) == null) {
+            throw new Error('アクセストークンを取得できませんでした');
+        }
+        VERTEX_ADC.state = 'available';
+        VERTEX_ADC.error = null;
+    }
+    catch (e) {
+        VERTEX_ADC.state = 'unavailable';
+        VERTEX_ADC.error = e?.message ?? String(e);
     }
 }
 
@@ -266,7 +299,10 @@ function isProviderConfigured (provider) {
         case 'anthropic':    return ANTHROPIC_API_KEY !== '';
         // 鍵ファイルが壊れている場合はADCに落ちて別の資格情報で動くのを避けるため未設定扱いにする
         case 'vertex-claude':
-        case 'vertex-gemini': return VERTEX_PROJECT_ID !== '' && VERTEX_CREDENTIALS.state !== 'error';
+        case 'vertex-gemini':
+            return VERTEX_PROJECT_ID !== '' &&
+                VERTEX_CREDENTIALS.state !== 'error' &&
+                (VERTEX_CREDENTIALS.state === 'service-account' || VERTEX_ADC.state === 'available');
         case 'gemini-api':   return GEMINI_API_KEY !== '';
         case 'openai':       return OPENAI_API_KEY !== '';
         // モデルの列挙まで揃って初めて使える。URLだけでは何も呼べない。
@@ -296,7 +332,15 @@ function vertexDetail () {
     switch (VERTEX_CREDENTIALS.state) {
         case 'service-account': return `${base} / SA: ${VERTEX_CREDENTIALS.clientEmail}`;
         case 'error':           return `${base} / 鍵ファイルエラー: ${VERTEX_CREDENTIALS.error}`;
-        default:                return `${base} / ADC`;
+        default: {
+            if (VERTEX_ADC.state === 'available') {
+                return `${base} / ADC: 利用可能`;
+            }
+            if (VERTEX_ADC.state === 'unavailable') {
+                return `${base} / ADC: 利用不可（${VERTEX_ADC.error}）`;
+            }
+            return `${base} / ADC: 未確認`;
+        }
     }
 }
 
@@ -496,6 +540,7 @@ module.exports = {
     VERTEX_REGION,
     vertexAuthOptions,
     assertVertexCredentials,
+    initializeVertexAuth,
     GEMINI_API_KEY,
     OPENAI_API_KEY,
     OPENAI_BASE_URL,
