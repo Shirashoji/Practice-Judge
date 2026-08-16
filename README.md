@@ -110,8 +110,10 @@ static/以下が静的ファイルの配信。よってここは本番環境と�
 
 ## AI学習支援機能
 
-問題の解き方や不正解の原因について、アプリ内でClaudeに相談できる機能。
+問題の解き方や不正解の原因について、アプリ内でLLMに相談できる機能。
 **答えそのものは教えない**ようにガードレールをかけ、会話は全てサーバ側に記録する。
+モデルはClaude（Anthropic API / Vertex AI）、Gemini（Vertex AI / Gemini API）、
+LM Studio等のローカルLLMから選べる。
 
 ### 導線
 
@@ -126,19 +128,47 @@ static/以下が静的ファイルの配信。よってここは本番環境と�
 
 ### セットアップ
 
-`.env` に以下を設定する（詳細は`.env.example`）。未設定でもAPIは起動し、LLMのエンドポイントだけが503を返す。
+`.env` に使いたい経路の分だけ設定する（詳細は`.env.example`）。
+何も設定しなくてもAPIは起動し、LLMのエンドポイントだけが503を返す。
 
 ```sh
+# Claude（Anthropic本家）
 LLM_PROVIDER=anthropic          # anthropic | vertex
 ANTHROPIC_API_KEY=sk-ant-...
+
+# Claude と Gemini を Vertex AI 経由で（認証はGCPのADC）
+LLM_PROVIDER=vertex
+VERTEX_PROJECT_ID=my-gcp-project
+VERTEX_REGION=global
+
+# Gemini だけを Gemini Developer API で（Vertexを使わない場合）
+GEMINI_API_KEY=...
+
+# ローカルLLM（LM Studio等のOpenAI互換サーバ）
+LOCAL_LLM_BASE_URL=http://host.docker.internal:1234/v1
+LOCAL_LLM_MODELS=qwen/qwen3-coder-30b
 ```
 
-Vertex AI経由でClaudeを使う場合は `LLM_PROVIDER=vertex` と `VERTEX_PROJECT_ID` を設定する
-（認証はGCPのADC）。`@anthropic-ai/vertex-sdk` は `google-auth-library` 系を芋づるで引き込むため
-遅延`require`にしてあり、Anthropic直API運用なら未インストールでも起動できる。
+`LLM_PROVIDER` が決めるのは**Claudeの経路だけ**で、Geminiとローカルの経路には影響しない。
+Geminiは `VERTEX_PROJECT_ID` があればVertex経由、無ければ `GEMINI_API_KEY` で
+Gemini Developer API経由になる。3系統を同時に有効にして、ユーザーに選ばせることもできる。
+
+ローカルLLMのモデルは自動検出せず `LOCAL_LLM_MODELS` に列挙する。
+起動時にLM Studioが落ちていると選択肢が空のままAPIが立ち上がってしまうため。
+APIはコンテナの中で動くので、ホストのLM Studioを指すURLは `localhost` ではなく
+`host.docker.internal` になる（Linux向けに`compose.yaml`で`extra_hosts`を張ってある）。
+
+SDKはいずれも遅延`require`にしてあり、使わない経路の依存は未インストールでも起動できる
+（`@anthropic-ai/vertex-sdk` と `@google/genai` は `google-auth-library` 系を芋づるで引き込むため）。
+ローカルLLMはSDKを使わずfetchで直接叩いているので依存が増えない。
 
 金額の上限やモデルの割り当ては**envではなくDBに置いてあり、管理画面から変更する**。
 `/control-panel/llm` 以下に、全体設定・ユーザー別上限・違反記録・会話の監査がある。
+経路が設定されていないモデルは、管理画面で許可してもユーザーの選択肢には出ない
+（許可設定はDB・経路の設定はenvにあり別々に変わるので、参照のたびに突き合わせている）。
+
+ローカルLLMは**単価0**として扱う。電気代はAPI課金ではないので計上しようがなく、
+結果として月次上限を素通りするが、これは意図通り（ローカルなら使い放題でよい）。
 
 ### 会話の共有と無料枠
 
@@ -192,6 +222,37 @@ const messages = rows.map(r => ({ role: r.role, content: JSON.parse(r.content_js
 
 `llm_tool_calls`はこれの派生インデックス（管理画面での検索・監査用）で、真実の源はあくまで`content_json`。
 永続化はターン単位で行っているので、途中でブラウザを閉じてもログは失われない。
+
+### プロバイダの抽象化
+
+`api/llm/providers/` に経路ごとのアダプタを置き、`api/llm/client.js` がモデルから選ぶ。
+プロバイダを全体で1つに固定していないのは、「Vertex経由のClaude ＋ Vertex経由のGemini ＋
+手元のLM Studio」のような混在構成を成立させるため。会話ごとに`llm_conversations.provider`へ記録する。
+
+**共通の面はAnthropicのMessages API形式に固定した**（`{content配列, stop_reason, usage}`）。
+中立的な独自の中間表現を作らなかったのは、会話ログがMessages APIの`content`配列そのもので、
+「保存したものをそのまま再送する」という一番効く性質を失いたくなかったから。
+Gemini・OpenAI互換の各アダプタが、自分の形との相互変換を内側に持つ。
+
+```
+system                 ⇄ systemInstruction        / {role:'system'}
+{role:'assistant'}     ⇄ {role:'model'}           / {role:'assistant'}
+{type:'tool_use'}      ⇄ functionCall             / tool_calls[]
+{type:'tool_result'}   ⇄ functionResponse         / {role:'tool'}
+tools[].input_schema   ⇄ parametersJsonSchema     / function.parameters
+```
+
+変換で気をつけた点:
+
+- Geminiの`promptTokenCount`とOpenAI互換の`prompt_tokens`は**キャッシュ分を含む**が、
+  Anthropicの`input_tokens`は含まない。`cost.js`はAnthropicの定義で計算するので、
+  アダプタ側で引いてから渡す（引かないとキャッシュ分を二重に計上する）
+- Geminiの並列function callingは`functionResponse`を**同じ順序で返す**ことで対応付ける仕様なので、
+  こちらで採番した`tool_use.id`は送り返さない（ログとUIの突き合わせにだけ使う）
+- OpenAI形式は1メッセージ1ツール結果なので、複数の`tool_result`を持つターンは分解する。
+  `tool`ロールは対応する`assistant`の直後に並ぶ必要がある
+- Anthropic固有の`thinking` / `output_config.effort`はAnthropicアダプタの中で足す。
+  呼び出し側で振り分けると、プロバイダが増えるたびに条件が増える
 
 ### Chrome Built-in AI（Prompt API）を実装していない理由
 
