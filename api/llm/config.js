@@ -301,27 +301,56 @@ function vertexDetail () {
 }
 
 // 管理画面の稼働状況表示用。
-// Claudeとgeminiは経路が排他なので、実際に使われる側だけを出す。
+//
+// ClaudeとGeminiは経路が排他だが、両方の行を出す。
+// 使われない側を隠すと、設定してあるのに使われていないのか、そもそも設定が
+// 効いていないのかを画面から区別できない（特にVertexの鍵は、経路を
+// 切り替えて実際に呼ぶまで正しさが分からない状態になっていた）。
+//
+// 実際に使う側は active で示し、使わない側には切り替え方を添える。
+// activeがnullの経路は排他の組に属さない（常に自分の系列で使われる）。
 function describeProviders () {
     const claude = claudeProvider();
     const gemini = geminiProvider();
     return [
         {
-            id: claude,
-            label: claude === 'vertex-claude' ? 'Claude（Vertex AI）' : 'Claude（Anthropic API）',
-            configured: isProviderConfigured(claude),
-            detail: claude === 'vertex-claude' ? vertexDetail() : 'ANTHROPIC_API_KEY',
+            id: 'anthropic',
+            label: 'Claude（Anthropic API）',
+            configured: isProviderConfigured('anthropic'),
+            active: claude === 'anthropic',
+            switchHint: claude === 'anthropic' ? null : 'LLM_PROVIDER=anthropic で切り替え',
+            detail: 'ANTHROPIC_API_KEY',
         },
         {
-            id: gemini,
-            label: gemini === 'vertex-gemini' ? 'Gemini（Vertex AI）' : 'Gemini（Gemini API）',
-            configured: isProviderConfigured(gemini),
-            detail: gemini === 'vertex-gemini' ? vertexDetail() : 'GEMINI_API_KEY',
+            id: 'vertex-claude',
+            label: 'Claude（Vertex AI）',
+            configured: isProviderConfigured('vertex-claude'),
+            active: claude === 'vertex-claude',
+            switchHint: claude === 'vertex-claude' ? null : 'LLM_PROVIDER=vertex で切り替え',
+            detail: vertexDetail(),
+        },
+        {
+            id: 'vertex-gemini',
+            label: 'Gemini（Vertex AI）',
+            configured: isProviderConfigured('vertex-gemini'),
+            active: gemini === 'vertex-gemini',
+            switchHint: gemini === 'vertex-gemini' ? null : 'VERTEX_PROJECT_ID を設定すると切り替わる',
+            detail: vertexDetail(),
+        },
+        {
+            id: 'gemini-api',
+            label: 'Gemini（Gemini API）',
+            configured: isProviderConfigured('gemini-api'),
+            active: gemini === 'gemini-api',
+            switchHint: gemini === 'gemini-api' ? null : 'VERTEX_PROJECT_ID を空にすると切り替わる',
+            detail: 'GEMINI_API_KEY',
         },
         {
             id: 'openai',
             label: 'OpenAI',
             configured: isProviderConfigured('openai'),
+            active: null,
+            switchHint: null,
             detail: OPENAI_BASE_URL === 'https://api.openai.com/v1'
                 ? 'OPENAI_API_KEY'
                 : `OPENAI_API_KEY / ${OPENAI_BASE_URL}`,
@@ -330,6 +359,8 @@ function describeProviders () {
             id: 'local',
             label: 'ローカルLLM（OpenAI互換 / LM Studio）',
             configured: isProviderConfigured('local'),
+            active: null,
+            switchHint: null,
             detail: LOCAL_BASE_URL === ''
                 ? '未設定'
                 : `${LOCAL_BASE_URL}（モデル: ${LOCAL_MODELS.join(', ') || 'なし'}）`,

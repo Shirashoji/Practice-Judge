@@ -151,6 +151,13 @@ export default function ControlPanelLlm ({ loaderData }) {
                                     {p.configured
                                         ? <span className="pico-color-green-500">設定済み</span>
                                         : <span className="pico-color-red-500">未設定</span>}
+                                    {/* 排他の経路（Claude・Gemini）だけ、今どちらを使うかを出す */}
+                                    {p.active === true && <span className="llm-note">{' '}・使用中</span>}
+                                    {p.active === false && (
+                                        <span className="llm-note">
+                                            {' '}・未使用{p.switchHint ? `（${p.switchHint}）` : ''}
+                                        </span>
+                                    )}
                                     <span className="llm-note">{' '}{p.detail}</span>
                                 </td>
                             </tr>
