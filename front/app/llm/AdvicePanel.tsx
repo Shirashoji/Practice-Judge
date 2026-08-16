@@ -52,6 +52,13 @@ export function AdvicePanel ({ problemId, submissionId, skillId, onClose }: any)
                     // 警告・違反は本文にAIの説明が出るので、ここでは印だけ残す
                     setTools((prev) => [...prev, { id: `w${prev.length}`, name: '⚠️ ガイドライン', state: 'error', summary: e.type === 'violation' ? '管理者に報告されました' : '警告' }]);
                 }
+                else if (e.type === 'rolled_back') {
+                    // 応答が無かったのでサーバ側が会話を巻き戻した。
+                    // 消えた会話へ「チャットでさらに質問する」を出すと404になるので、IDを捨てる。
+                    if (e.conversationRemoved) {
+                        setConversationId(null);
+                    }
+                }
                 else if (e.type === 'error') {
                     setError(e.message);
                 }

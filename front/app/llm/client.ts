@@ -13,6 +13,9 @@ export type LlmEvent =
     | { type: 'warning'; violationType: string; message: string }
     | { type: 'violation'; violationType: string }
     | { type: 'usage'; costUsd: number; monthCostUsd: number; limitUsd: number | null }
+    // 応答が1つも保存できなかったとき、サーバが直前のユーザー発言を取り消したことの通知。
+    // conversationRemoved なら会話ごと消えているので、その会話IDはもう開けない。
+    | { type: 'rolled_back'; conversationId: number; conversationRemoved: boolean }
     | { type: 'error'; code: string; message: string; detail?: any }
     | { type: 'done'; stopReason: string };
 

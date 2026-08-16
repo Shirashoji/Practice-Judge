@@ -158,6 +158,39 @@ function appendTurn (data) {
     return info.lastInsertRowid;
 }
 
+// 応答を1つも保存できずに終わったとき、直前に積んだユーザー発言を取り消す。
+//
+// 残すと、リトライのたびにuserターンが積み上がる。userロールが連続した履歴は
+// OpenAI形式では不正になりうるし、送信のたびにプロンプトが無駄に膨らむ。
+// 「発言はしたが応答が無い」状態を残すより、無かったことにして再送させるほうがよい。
+//
+// 会話ごと空になった場合（=1ターン目で失敗した場合）は会話自体も消す。
+// 中身の無い会話は履歴一覧のノイズにしかならない。
+// FKもON DELETE CASCADEも張っていないスキーマなので、派生行が無いことを確かめてから消す。
+//
+// returns: 会話ごと削除したかどうか
+function rollbackUserTurn (conversationId, turnId) {
+    const trans = db.transaction(() => {
+        db.prepare('DELETE FROM llm_turns WHERE id = ? AND conversation_id = ? AND role = ?')
+            .run(turnId, conversationId, 'user');
+
+        const turns = db.prepare('SELECT COUNT(*) AS c FROM llm_turns WHERE conversation_id = ?').get(conversationId).c;
+        if (turns > 0) {
+            return false;
+        }
+        // 応答が無い以上ここは0のはずだが、消してよいかの判断を件数に委ねる
+        const toolCalls = db.prepare('SELECT COUNT(*) AS c FROM llm_tool_calls WHERE conversation_id = ?').get(conversationId).c;
+        const usage = db.prepare('SELECT COUNT(*) AS c FROM llm_usage WHERE conversation_id = ?').get(conversationId).c;
+        if (toolCalls > 0 || usage > 0) {
+            return false;
+        }
+
+        db.prepare('DELETE FROM llm_conversations WHERE id = ?').run(conversationId);
+        return true;
+    });
+    return trans();
+}
+
 // Messages APIにそのまま渡せる形。会話の完全復元はこの一本で足りる。
 function loadMessages (conversationId) {
     const rows = db.prepare(
@@ -262,6 +295,7 @@ module.exports = {
     addConversationCost,
     incrementWarning,
     appendTurn,
+    rollbackUserTurn,
     loadMessages,
     loadTurns,
     recordToolCall,

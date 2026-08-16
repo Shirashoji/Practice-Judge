@@ -130,8 +130,22 @@ function buildSituation (conv) {
 //   超過は最大1ターン分だけオーバーしうる。
 // ------------------------------------------------------------
 
-async function runToolLoop (req, res, emit, conv, session) {
-    // モデルごとに経路が違う（Claude / Gemini / ローカル）。会話に固定されたモデルで選ぶ。
+// pendingUserTurnId は、この呼び出しの直前に積んだユーザー発言のターンID。
+// 応答を1つも保存できずに終わった場合、これを取り消して「無かったこと」にする。
+async function runToolLoop (req, res, emit, conv, session, pendingUserTurnId) {
+    // 応答を1つでも保存できたか。取り消してよいかの判断はこれだけで足りる。
+    let persistedAssistant = false;
+
+    const finish = (stopReason) => {
+        if (!persistedAssistant && pendingUserTurnId != null) {
+            const removedConversation = store.rollbackUserTurn(conv.id, pendingUserTurnId);
+            emit('rolled_back', { conversationId: conv.id, conversationRemoved: removedConversation });
+        }
+        emit('done', { stopReason });
+        res.end();
+    };
+
+    // モデルごとに経路が違う（Claude / Gemini / OpenAI / ローカル）。会話に固定されたモデルで選ぶ。
     let client;
     try {
         client = createClient(conv.model);
@@ -139,8 +153,7 @@ async function runToolLoop (req, res, emit, conv, session) {
     catch (e) {
         console.error('LLMクライアントの生成に失敗しました:', e);
         emit('error', { code: 'LLM_NOT_CONFIGURED', message: 'この環境ではAI学習支援が有効になっていません。' });
-        emit('done', { stopReason: 'error' });
-        res.end();
+        finish('error');
         return;
     }
 
@@ -197,7 +210,8 @@ async function runToolLoop (req, res, emit, conv, session) {
         // 各アダプタが自分で足す。ここで振り分けるとプロバイダが増えるたびに条件が増える。
         const params = {
             model: conv.model,
-            max_tokens: config.MAX_TOKENS,
+            // 適正値はモデルごとに違う（思考する世代は枠が要る、ローカルはコンテキストに縛られる）
+            max_tokens: config.getMaxTokens(conv.model),
             system: skill.system,
             tools: skill.tools,
             messages,
@@ -236,6 +250,7 @@ async function runToolLoop (req, res, emit, conv, session) {
             model: conv.model,
             ...usage,
         });
+        persistedAssistant = true;
 
         const after = cost.checkBudget(conv.user_id, shareMode);
         emit('usage', {
@@ -323,8 +338,7 @@ async function runToolLoop (req, res, emit, conv, session) {
         }
     }
 
-    emit('done', { stopReason });
-    res.end();
+    finish(stopReason);
 }
 
 // ------------------------------------------------------------
@@ -408,7 +422,7 @@ llmRouter.post('/advice', loginOnly, async (req, res) => {
             ? `提出 #${submission.id} がACしました。このコードの改善点を教えてください。`
             : `提出 #${submission.id} が ${submission.status} になりました。どこが間違っていそうかヒントをください。`);
 
-    store.appendTurn({
+    const userTurnId = store.appendTurn({
         conversationId,
         role: 'user',
         content: [{ type: 'text', text: opening }],
@@ -418,7 +432,8 @@ llmRouter.post('/advice', loginOnly, async (req, res) => {
     const emit = openStream(res);
     emit('meta', { conversationId, skillId, model: conv.model, modelSource: resolved.source });
 
-    await runToolLoop(req, res, emit, conv, req.session);
+    // 1ターン目に失敗したら会話ごと取り消す（発言だけが残った空の会話を作らない）
+    await runToolLoop(req, res, emit, conv, req.session, userTurnId);
 });
 
 // ------------------------------------------------------------
@@ -457,7 +472,7 @@ llmRouter.post('/conversations/:id/messages', loginOnly, async (req, res) => {
         return res.status(400).json({ error: 'メッセージが長すぎます。' });
     }
 
-    store.appendTurn({
+    const userTurnId = store.appendTurn({
         conversationId: conv.id,
         role: 'user',
         content: [{ type: 'text', text }],
@@ -467,7 +482,7 @@ llmRouter.post('/conversations/:id/messages', loginOnly, async (req, res) => {
     emit('meta', { conversationId: conv.id, skillId: conv.skill_id, model: conv.model });
 
     // warning_countが増えている可能性があるので読み直す
-    await runToolLoop(req, res, emit, store.getConversation(conv.id), req.session);
+    await runToolLoop(req, res, emit, store.getConversation(conv.id), req.session, userTurnId);
 });
 
 // ------------------------------------------------------------
