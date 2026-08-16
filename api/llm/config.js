@@ -10,70 +10,197 @@ const { db } = require('../db.js');
 // env
 // ------------------------------------------------------------
 
+// Claudeをどこ経由で呼ぶか。anthropic（本家API） | vertex（Vertex AI）。
+// Geminiとローカルモデルの経路はこの値では決まらない（後述のproviderForを参照）。
 const PROVIDER = process.env.LLM_PROVIDER || 'anthropic';
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || '';
 const VERTEX_PROJECT_ID = process.env.VERTEX_PROJECT_ID || '';
 const VERTEX_REGION = process.env.VERTEX_REGION || 'global';
+// Vertexを使わずGemini Developer APIを直接叩く場合のキー。
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
+
+// LM Studio等のOpenAI互換ローカルサーバ。
+// LM Studioの既定は http://localhost:1234/v1 だが、APIはコンテナの中で動くので
+// ホスト側のLM Studioを指すなら http://host.docker.internal:1234/v1 になる。
+const LOCAL_BASE_URL = (process.env.LOCAL_LLM_BASE_URL || '').replace(/\/+$/, '');
+// ローカルサーバは認証しないのが普通だが、OpenAI互換クライアントはヘッダを要求するので既定値を置く。
+const LOCAL_API_KEY = process.env.LOCAL_LLM_API_KEY || 'local';
+// 使わせるローカルモデルのID（LM Studioの /v1/models に出るもの）をカンマ区切りで列挙する。
+// 自動検出にしないのは、起動時にローカルサーバが落ちていると
+// 「モデルが1つも無い」状態でAPIが立ち上がってしまうため。
+const LOCAL_MODELS = (process.env.LOCAL_LLM_MODELS || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s !== '');
+
 const MODEL_CHAT = process.env.LLM_MODEL_CHAT || 'claude-opus-5';
 const MODEL_CLASSIFY = process.env.LLM_MODEL_CLASSIFY || 'claude-haiku-4-5';
 
-// LLM機能が使える状態かどうか。使えない場合もAPIサーバ自体は起動させ、
-// LLMのエンドポイントだけが503を返すようにする（既存機能を巻き込まないため）。
-function isConfigured () {
-    if (PROVIDER === 'vertex') {
-        return VERTEX_PROJECT_ID !== '';
-    }
-    return ANTHROPIC_API_KEY !== '';
-}
-
 // ------------------------------------------------------------
-// モデル単価表（USD per 1M tokens）
+// モデル登録簿
 //
-// cacheReadは入力単価の約0.1倍、cacheWriteは約1.25倍。
+// 1モデル = 1エントリで「どの系列か」「単価（USD per 1M tokens）」「対応パラメータ」を持つ。
+// 系列(family)から呼び出し経路(provider)が決まる。
+//
+// cacheReadは入力単価の約0.1倍、cacheWriteは約1.25倍として計算する（cost.js）。
 // ここに無いモデルはunknownとして入力=出力=0で計上されるのを避けるため、
 // フォールバック単価（最も高いOpus相当）を使う。過小請求より過大見積のほうが安全。
+//
+// effort / adaptiveThinking はAnthropicのMessages API固有のパラメータ。
+// 新しい世代のClaudeにしか無く、非対応モデル（Haiku 4.5など）に送ると400になるので、
+// ユーザーがモデルを選べる以上、送る前にここで振り分ける必要がある。
+// Gemini・ローカルモデルではそもそも使わない（各プロバイダ実装が無視する）。
+//
+// Geminiの単価は入力200kトークン以下の区分。それを超えると実際にはもう一段高いが、
+// 学習支援の会話がその長さに達することはまずないので区分は分けていない。
 // ------------------------------------------------------------
 
-const PRICING = {
-    'claude-opus-5':     { input: 5.00, output: 25.00 },
-    'claude-opus-4-8':   { input: 5.00, output: 25.00 },
-    'claude-sonnet-5':   { input: 3.00, output: 15.00 },
-    'claude-sonnet-4-6': { input: 3.00, output: 15.00 },
-    'claude-haiku-4-5':  { input: 1.00, output: 5.00 },
+const BUILTIN_MODELS = {
+    'claude-opus-5':          { family: 'claude', input: 5.00, output: 25.00, effort: true,  adaptiveThinking: true },
+    'claude-opus-4-8':        { family: 'claude', input: 5.00, output: 25.00, effort: true,  adaptiveThinking: true },
+    'claude-sonnet-5':        { family: 'claude', input: 3.00, output: 15.00, effort: true,  adaptiveThinking: true },
+    'claude-sonnet-4-6':      { family: 'claude', input: 3.00, output: 15.00, effort: true,  adaptiveThinking: true },
+    'claude-haiku-4-5':       { family: 'claude', input: 1.00, output: 5.00,  effort: false, adaptiveThinking: false },
+
+    'gemini-3-pro-preview':   { family: 'gemini', input: 2.00, output: 12.00 },
+    'gemini-3-flash-preview': { family: 'gemini', input: 0.50, output: 3.00 },
+    'gemini-2.5-pro':         { family: 'gemini', input: 1.25, output: 10.00 },
+    'gemini-2.5-flash':       { family: 'gemini', input: 0.30, output: 2.50 },
+    'gemini-2.5-flash-lite':  { family: 'gemini', input: 0.10, output: 0.40 },
 };
+
+// ローカルモデルは実行コストが計上できない（電気代はAPI課金ではない）ので単価0で扱う。
+// 結果として上限判定を素通りするが、これは意図通り。ローカルなら使い放題でよい。
+const LOCAL_MODEL_ENTRY = { family: 'local', input: 0, output: 0 };
 
 const FALLBACK_PRICING = { input: 5.00, output: 25.00 };
 
-function getPricing (model) {
-    return PRICING[model] || FALLBACK_PRICING;
+function getModelEntry (model) {
+    if (Object.prototype.hasOwnProperty.call(BUILTIN_MODELS, model)) {
+        return BUILTIN_MODELS[model];
+    }
+    if (LOCAL_MODELS.indexOf(model) !== -1) {
+        return LOCAL_MODEL_ENTRY;
+    }
+    return null;
 }
 
-// モデルごとの対応パラメータ。
-// output_config.effort と thinking:{type:'adaptive'} は新しい世代のモデルにしか無く、
-// 対応していないモデル（Haiku 4.5など）に送ると400になる。
-// ユーザーがモデルを選べる以上、送る前にここで振り分ける必要がある。
-const CAPABILITIES = {
-    'claude-opus-5':     { effort: true, adaptiveThinking: true },
-    'claude-opus-4-8':   { effort: true, adaptiveThinking: true },
-    'claude-sonnet-5':   { effort: true, adaptiveThinking: true },
-    'claude-sonnet-4-6': { effort: true, adaptiveThinking: true },
-    'claude-haiku-4-5':  { effort: false, adaptiveThinking: false },
-};
+function getPricing (model) {
+    const e = getModelEntry(model);
+    return e == null ? FALLBACK_PRICING : { input: e.input, output: e.output };
+}
 
 function getCapabilities (model) {
+    const e = getModelEntry(model);
     // 未知のモデルは安全側に倒して、追加パラメータを一切送らない
-    return CAPABILITIES[model] || { effort: false, adaptiveThinking: false };
+    return {
+        effort: e?.effort === true,
+        adaptiveThinking: e?.adaptiveThinking === true,
+    };
+}
+
+function getFamily (model) {
+    return getModelEntry(model)?.family ?? null;
 }
 
 // 単価表に載っているモデルかどうか。
 // 単価の分からないモデルを許可すると利用額が推定できず上限が機能しなくなるので、
 // 管理画面ではここを通ったものだけを許可モデルとして受け付ける。
 function isKnownModel (model) {
-    return Object.prototype.hasOwnProperty.call(PRICING, model);
+    return getModelEntry(model) != null;
 }
 
 function listKnownModels () {
-    return Object.keys(PRICING);
+    return [...Object.keys(BUILTIN_MODELS), ...LOCAL_MODELS];
+}
+
+// ------------------------------------------------------------
+// 呼び出し経路の解決
+//
+// providerは「どのSDK・どのエンドポイントで喋るか」であって、モデルの系列とは別物。
+// 同じClaudeでもAnthropic本家とVertexで経路が違い、同じGeminiでもVertexと
+// Gemini Developer APIで違う。モデルごとに解決するのは、
+// 「Vertex経由のClaudeとローカルLLM」のような混在構成を成立させるため。
+// ------------------------------------------------------------
+
+// Geminiをどちらの経路で呼ぶか。
+// VERTEX_PROJECT_IDがあればVertexを優先する（両方設定されている場合もVertex）。
+function geminiProvider () {
+    return VERTEX_PROJECT_ID !== '' ? 'vertex-gemini' : 'gemini-api';
+}
+
+// Claudeをどちらの経路で呼ぶか。
+function claudeProvider () {
+    return PROVIDER === 'vertex' ? 'vertex-claude' : 'anthropic';
+}
+
+// returns: 'anthropic' | 'vertex-claude' | 'vertex-gemini' | 'gemini-api' | 'local' | null
+function providerFor (model) {
+    switch (getFamily(model)) {
+        case 'claude': return claudeProvider();
+        case 'gemini': return geminiProvider();
+        case 'local':  return 'local';
+        default:       return null;
+    }
+}
+
+function isProviderConfigured (provider) {
+    switch (provider) {
+        case 'anthropic':    return ANTHROPIC_API_KEY !== '';
+        case 'vertex-claude':
+        case 'vertex-gemini': return VERTEX_PROJECT_ID !== '';
+        case 'gemini-api':   return GEMINI_API_KEY !== '';
+        // モデルの列挙まで揃って初めて使える。URLだけでは何も呼べない。
+        case 'local':        return LOCAL_BASE_URL !== '' && LOCAL_MODELS.length > 0;
+        default:             return false;
+    }
+}
+
+// そのモデルが今この環境で実際に呼べるか。
+// 「登録簿に載っている」だけでは足りず、経路の認証情報まで揃っている必要がある。
+function isModelAvailable (model) {
+    const p = providerFor(model);
+    return p != null && isProviderConfigured(p);
+}
+
+// LLM機能が使える状態かどうか。使えない場合もAPIサーバ自体は起動させ、
+// LLMのエンドポイントだけが503を返すようにする（既存機能を巻き込まないため）。
+// 経路が1つでも通っていれば有効とする。
+function isConfigured () {
+    return listKnownModels().some(isModelAvailable);
+}
+
+// 管理画面の稼働状況表示用。
+// Claudeとgeminiは経路が排他なので、実際に使われる側だけを出す。
+function describeProviders () {
+    const claude = claudeProvider();
+    const gemini = geminiProvider();
+    return [
+        {
+            id: claude,
+            label: claude === 'vertex-claude' ? 'Claude（Vertex AI）' : 'Claude（Anthropic API）',
+            configured: isProviderConfigured(claude),
+            detail: claude === 'vertex-claude'
+                ? `project=${VERTEX_PROJECT_ID || '未設定'} / region=${VERTEX_REGION}`
+                : 'ANTHROPIC_API_KEY',
+        },
+        {
+            id: gemini,
+            label: gemini === 'vertex-gemini' ? 'Gemini（Vertex AI）' : 'Gemini（Gemini API）',
+            configured: isProviderConfigured(gemini),
+            detail: gemini === 'vertex-gemini'
+                ? `project=${VERTEX_PROJECT_ID || '未設定'} / region=${VERTEX_REGION}`
+                : 'GEMINI_API_KEY',
+        },
+        {
+            id: 'local',
+            label: 'ローカルLLM（OpenAI互換 / LM Studio）',
+            configured: isProviderConfigured('local'),
+            detail: LOCAL_BASE_URL === ''
+                ? '未設定'
+                : `${LOCAL_BASE_URL}（モデル: ${LOCAL_MODELS.join(', ') || 'なし'}）`,
+        },
+    ];
 }
 
 // 対話の思考の深さ。低めでも十分な品質が出るうえ、月次上限のあるユーザーには
@@ -185,6 +312,10 @@ module.exports = {
     ANTHROPIC_API_KEY,
     VERTEX_PROJECT_ID,
     VERTEX_REGION,
+    GEMINI_API_KEY,
+    LOCAL_BASE_URL,
+    LOCAL_API_KEY,
+    LOCAL_MODELS,
     MODEL_CHAT,
     MODEL_CLASSIFY,
     EFFORT,
@@ -192,6 +323,11 @@ module.exports = {
     isConfigured,
     getPricing,
     getCapabilities,
+    getFamily,
+    providerFor,
+    isProviderConfigured,
+    isModelAvailable,
+    describeProviders,
     isKnownModel,
     listKnownModels,
     ensureDefaults,

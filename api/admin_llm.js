@@ -26,8 +26,11 @@ const MODE_KEYS = ['default_shared_limit_mode', 'default_private_limit_mode', 's
 adminLlmRouter.get('/settings', adminOnly, (req, res) => {
     return res.json({
         provider: config.PROVIDER,
+        // 経路はモデルの系列ごとに別（Claude / Gemini / ローカル）なので、まとめて状態を返す
+        providers: config.describeProviders(),
         configured: config.isConfigured(),
         envDefaultModel: config.MODEL_CHAT,
+        envDefaultModelAvailable: config.isModelAvailable(config.MODEL_CHAT),
         limits: {
             shared: {
                 mode: config.getSetting('default_shared_limit_mode'),
@@ -44,7 +47,14 @@ adminLlmRouter.get('/settings', adminOnly, (req, res) => {
         },
         modelByDifficulty: config.getSettingJSON('model_by_difficulty') || {},
         allowedModels: config.getSettingJSON('allowed_models') || [],
-        knownModels: config.listKnownModels().map((m) => ({ model: m, ...config.getPricing(m) })),
+        knownModels: config.listKnownModels().map((m) => ({
+            model: m,
+            family: config.getFamily(m),
+            provider: config.providerFor(m),
+            // 経路が未設定のモデルは選ばせない（許可しても実際には呼べない）
+            available: config.isModelAvailable(m),
+            ...config.getPricing(m),
+        })),
         currentMonth: {
             billingMonth: config.billingMonth(),
             systemCostUsd: cost.monthlyCostSystem(),

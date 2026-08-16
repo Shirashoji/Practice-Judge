@@ -72,6 +72,20 @@ function preflight (userId) {
     return null;
 }
 
+// 会話に固定されたモデルが今も呼べるか。
+// モデルは会話単位で固定される一方、envの経路設定は後から変わりうるので、
+// 継続時にも毎回確かめる必要がある。
+function modelGate (model) {
+    if (!config.isModelAvailable(model)) {
+        return {
+            code: 'MODEL_UNAVAILABLE',
+            status: 503,
+            message: `AIモデル（${model}）が現在利用できません。設定画面で別のモデルを選ぶか、管理者にお問い合わせください。`,
+        };
+    }
+    return null;
+}
+
 // 問題がそのユーザーから見えるか
 function visibleProblem (problemId, session) {
     let where = 'WHERE id = ?';
@@ -117,10 +131,21 @@ function buildSituation (conv) {
 // ------------------------------------------------------------
 
 async function runToolLoop (req, res, emit, conv, session) {
-    const client = createClient();
+    // モデルごとに経路が違う（Claude / Gemini / ローカル）。会話に固定されたモデルで選ぶ。
+    let client;
+    try {
+        client = createClient(conv.model);
+    }
+    catch (e) {
+        console.error('LLMクライアントの生成に失敗しました:', e);
+        emit('error', { code: 'LLM_NOT_CONFIGURED', message: 'この環境ではAI学習支援が有効になっていません。' });
+        emit('done', { stopReason: 'error' });
+        res.end();
+        return;
+    }
+
     const situation = buildSituation(conv);
     const skill = skills.getSkill(conv.skill_id, situation);
-    const caps = config.getCapabilities(conv.model);
 
     const toolCtx = {
         userId: conv.user_id,
@@ -167,20 +192,17 @@ async function runToolLoop (req, res, emit, conv, session) {
             break;
         }
 
+        // プロバイダ非依存の共通パラメータ。
+        // 特定プロバイダにしか無いもの（Anthropicのthinking / output_config.effortなど）は
+        // 各アダプタが自分で足す。ここで振り分けるとプロバイダが増えるたびに条件が増える。
         const params = {
             model: conv.model,
             max_tokens: config.MAX_TOKENS,
             system: skill.system,
             tools: skill.tools,
             messages,
+            effort: config.EFFORT,
         };
-        // 対応しているモデルにだけ送る（非対応モデルに送ると400になる）
-        if (caps.adaptiveThinking) {
-            params.thinking = { type: 'adaptive' };
-        }
-        if (caps.effort) {
-            params.output_config = { effort: config.EFFORT };
-        }
 
         let message;
         try {
@@ -357,6 +379,13 @@ llmRouter.post('/advice', loginOnly, async (req, res) => {
     }
 
     const resolved = modelPolicy.resolveModel(user_id, problem.difficulty);
+    if (resolved == null) {
+        return res.status(503).json({
+            error: 'この環境ではAI学習支援が有効になっていません。',
+            code: 'LLM_NOT_CONFIGURED',
+        });
+    }
+
     const settings = store.getUserSettings(user_id);
     const shareMode = store.effectiveShareMode(user_id);
 
@@ -365,7 +394,8 @@ llmRouter.post('/advice', loginOnly, async (req, res) => {
         problemId,
         submissionId: submission?.id ?? null,
         skillId,
-        provider: config.PROVIDER,
+        // 会話ごとに経路が違いうるので、全体設定ではなくモデルから引いたものを記録する
+        provider: config.providerFor(resolved.model),
         model: resolved.model,
         shareMode,
         forcedShared: settings.force_shared === 1,
@@ -408,6 +438,15 @@ llmRouter.post('/conversations/:id/messages', loginOnly, async (req, res) => {
     if (conv == null || conv.user_id !== user_id) {
         // 他人の会話の存在を漏らさないよう404で統一する
         return res.status(404).json({ error: '会話が見つかりません。' });
+    }
+
+    // 会話に固定されたモデルの経路が、その後のenv変更で消えている可能性がある
+    const modelUnavailable = modelGate(conv.model);
+    if (modelUnavailable != null) {
+        return res.status(modelUnavailable.status).json({
+            error: modelUnavailable.message,
+            code: modelUnavailable.code,
+        });
     }
 
     const text = req.body?.message;

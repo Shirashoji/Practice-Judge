@@ -9,10 +9,12 @@
 const config = require('./config.js');
 const store = require('./store.js');
 
-// 管理画面で設定された、ユーザーが選べるモデルの一覧
+// 管理画面で設定された、ユーザーが選べるモデルの一覧。
+// 呼び出し経路が設定されていないモデル（例: GEMINI_API_KEYを外した後のGemini）は除く。
+// 許可設定はDB、経路の設定はenvにあり別々に変わるので、ここで必ず突き合わせる。
 function getAllowedModels () {
     const list = config.getSettingJSON('allowed_models');
-    return Array.isArray(list) ? list : [];
+    return Array.isArray(list) ? list.filter(config.isModelAvailable) : [];
 }
 
 function isAllowedModel (model) {
@@ -29,9 +31,14 @@ function modelForDifficulty (difficulty) {
     return null;
 }
 
-// returns: { model, source } source は 'user' | 'difficulty' | 'env'（設定画面の表示用）
+// returns: { model, source } | null
+// source は 'user' | 'difficulty' | 'env' | 'fallback'（設定画面の表示用）
 // sourceは「どの層で決まったか」を正確に返す。マッピングの値がenv既定と偶然一致していても
 // 'difficulty' と報告する（そうしないと設定画面で誤解を招く）。
+//
+// 各層で「呼べるモデルか」を確認して、駄目なら次の層に落とす。
+// 設定が古くて呼べないモデルを指していても、使える経路が1つでもあれば機能を止めない。
+// 1つも無ければnullを返す（503にするのは呼び出し側の責務）。
 function resolveModel (userId, difficulty) {
     const settings = store.getUserSettings(userId);
 
@@ -43,10 +50,19 @@ function resolveModel (userId, difficulty) {
     }
 
     const byDifficulty = modelForDifficulty(difficulty);
-    if (byDifficulty != null) {
+    if (byDifficulty != null && config.isModelAvailable(byDifficulty)) {
         return { model: byDifficulty, source: 'difficulty' };
     }
-    return { model: config.MODEL_CHAT, source: 'env' };
+
+    if (config.isModelAvailable(config.MODEL_CHAT)) {
+        return { model: config.MODEL_CHAT, source: 'env' };
+    }
+
+    const fallback = getAllowedModels()[0] ?? config.listKnownModels().find(config.isModelAvailable);
+    if (fallback != null) {
+        return { model: fallback, source: 'fallback' };
+    }
+    return null;
 }
 
 // 設定画面に出す、モデルごとの単価と相対的な安さ。
@@ -56,6 +72,7 @@ function describeAllowedModels () {
         const p = config.getPricing(model);
         return {
             model,
+            family: config.getFamily(model),
             inputUsdPerMTok: p.input,
             outputUsdPerMTok: p.output,
         };

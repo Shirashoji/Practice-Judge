@@ -1,51 +1,56 @@
 // LLMプロバイダの抽象化
 //
-// Anthropic本家APIとVertex AI上のClaudeを、呼び出し側から見て同じ面で扱えるようにする。
-// どちらのSDKも messages.stream() / messages.create() を同じ形で持っているので、
-// 差分はクライアントの生成方法だけに閉じ込められる。
+// 呼び出し側から見た面は Anthropic の Messages API に固定する。
+//   client.messages.stream(params) → on('text') と finalMessage() を持つオブジェクト
+// パラメータも戻り値もAnthropic形式（content配列 / stop_reason / usage）で、
+// 各プロバイダのアダプタが自分の形との変換を持つ。
 //
-// 将来ブラウザ内蔵AI（Chrome Prompt API）を足すならここに3つ目のプロバイダを生やすことになるが、
+// この向きに揃えているのは、会話ログ（llm_turns.content_json）が
+// Messages APIのcontent配列そのままだから。ログ形式を共通の中間表現にすると
+// 「保存したものをそのまま再送する」という一番効く性質が失われる。
+//
+// プロバイダはモデルごとに決まる（config.providerFor）。全体で1つではないのは、
+// 「Vertex経由のClaude ＋ Vertex経由のGemini ＋ 手元のLM Studio」のような
+// 混在構成を成立させるため。
+//
+// 将来ブラウザ内蔵AI（Chrome Prompt API）を足すならここに生やすことになるが、
 // 現時点では実装しない。理由はREADMEに記載（ガードレール・ログ・ツール認可が全てサーバ経由である
 // という前提が崩れ、クライアント側に整合性保証が無いため改竄を検知できない）。
 
 const config = require('./config.js');
 
-let cached = null;
+// プロバイダ単位でクライアントを使い回す（接続と認証トークンの再取得を避ける）
+const cache = new Map();
 
-function createClient () {
-    if (cached != null) {
-        return cached;
+function build (provider) {
+    switch (provider) {
+        case 'anthropic':
+        case 'vertex-claude':
+            return require('./providers/anthropic.js').create(provider);
+        case 'vertex-gemini':
+        case 'gemini-api':
+            return require('./providers/gemini.js').create(provider);
+        case 'local':
+            return require('./providers/openai_compat.js').create();
+        default:
+            throw new Error(`未知のプロバイダです: ${provider}`);
+    }
+}
+
+// model は llm_conversations.model（会話単位で固定されている）。
+function createClient (model) {
+    const provider = config.providerFor(model);
+    if (provider == null) {
+        throw new Error(`未知のモデルです: ${model}`);
+    }
+    if (!config.isProviderConfigured(provider)) {
+        throw new Error(`モデル ${model} の呼び出し経路（${provider}）が設定されていません。`);
     }
 
-    if (config.PROVIDER === 'vertex') {
-        // vertex-sdkはgoogle-auth-library系を芋づるで引き込むため、
-        // Vertexを使うときだけ読み込む。Anthropic直API運用なら未インストールでも起動できる。
-        let AnthropicVertex;
-        try {
-            ({ AnthropicVertex } = require('@anthropic-ai/vertex-sdk'));
-        }
-        catch (e) {
-            throw new Error('Vertexを使うには @anthropic-ai/vertex-sdk のインストールが必要です（npm i @anthropic-ai/vertex-sdk）。');
-        }
-
-        if (config.VERTEX_PROJECT_ID === '') {
-            throw new Error('VERTEX_PROJECT_ID が設定されていません。');
-        }
-
-        // 認証はGCPのADC（gcloud auth application-default login / メタデータサーバ）に任せる。
-        cached = new AnthropicVertex({
-            projectId: config.VERTEX_PROJECT_ID,
-            region: config.VERTEX_REGION,
-        });
-        return cached;
+    if (!cache.has(provider)) {
+        cache.set(provider, build(provider));
     }
-
-    const Anthropic = require('@anthropic-ai/sdk');
-    if (config.ANTHROPIC_API_KEY === '') {
-        throw new Error('ANTHROPIC_API_KEY が設定されていません。');
-    }
-    cached = new Anthropic({ apiKey: config.ANTHROPIC_API_KEY });
-    return cached;
+    return cache.get(provider);
 }
 
 module.exports = { createClient };
