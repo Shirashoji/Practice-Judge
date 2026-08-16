@@ -62,8 +62,16 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       VERTEX_PROJECT_ID: ${VERTEX_PROJECT_ID:-}
       VERTEX_REGION: ${VERTEX_REGION:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      LOCAL_LLM_BASE_URL: ${LOCAL_LLM_BASE_URL:-}
+      LOCAL_LLM_API_KEY: ${LOCAL_LLM_API_KEY:-}
+      LOCAL_LLM_MODELS: ${LOCAL_LLM_MODELS:-}
       LLM_MODEL_CHAT: ${LLM_MODEL_CHAT:-}
       LLM_MODEL_CLASSIFY: ${LLM_MODEL_CLASSIFY:-}
+    # ホストで動くLM Studio等をコンテナから見るための名前。
+    # Docker Desktop（Mac/Windows）では自動で引けるが、Linuxでは明示が要る。
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - dbdata:/data
       - ./static:/app/static:ro
