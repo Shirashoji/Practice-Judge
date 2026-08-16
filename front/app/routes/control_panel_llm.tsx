@@ -30,6 +30,20 @@ export function ErrorBoundary ({ error }) {
     );
 }
 
+// モデル一覧の見出し。系列ごとに呼び出し経路が違うので、まとめて出すと選び間違える。
+const FAMILIES: [string, string][] = [
+    ['claude', 'Claude'],
+    ['gemini', 'Gemini'],
+    ['local', 'ローカルLLM'],
+];
+
+function describePrice (m: any) {
+    if (m.family === 'local') {
+        return 'API課金なし（利用額は0として計上）';
+    }
+    return `入力 $${m.input} / 出力 $${m.output} per 1M tokens`;
+}
+
 // モード（custom / unlimited）と金額をひと組で編集する
 function LimitEditor ({ label, hint = null, mode, usd, onChange }: any) {
     return (
@@ -129,14 +143,32 @@ export default function ControlPanelLlm ({ loaderData }) {
                 <h2>稼働状況</h2>
                 <table>
                     <tbody>
-                        <tr><th scope="row">プロバイダ</th><td>{d.provider}</td></tr>
+                        {d.providers.map((p: any) => (
+                            <tr key={p.id}>
+                                <th scope="row">{p.label}</th>
+                                <td>
+                                    {p.configured
+                                        ? <span className="pico-color-green-500">設定済み</span>
+                                        : <span className="pico-color-red-500">未設定</span>}
+                                    <span className="llm-note">{' '}{p.detail}</span>
+                                </td>
+                            </tr>
+                        ))}
                         <tr>
-                            <th scope="row">APIキー</th>
+                            <th scope="row">機能の状態</th>
                             <td>{d.configured
-                                ? <span className="pico-color-green-500">設定済み</span>
-                                : <span className="pico-color-red-500">未設定（機能は無効）</span>}</td>
+                                ? <span className="pico-color-green-500">有効</span>
+                                : <span className="pico-color-red-500">無効（呼び出せる経路がありません）</span>}</td>
                         </tr>
-                        <tr><th scope="row">envの既定モデル</th><td>{d.envDefaultModel}</td></tr>
+                        <tr>
+                            <th scope="row">envの既定モデル</th>
+                            <td>
+                                {d.envDefaultModel}
+                                {!d.envDefaultModelAvailable && (
+                                    <span className="pico-color-red-500">（経路が未設定のため使われません）</span>
+                                )}
+                            </td>
+                        </tr>
                         <tr>
                             <th scope="row">今月のシステム全体の利用額</th>
                             <td>${d.currentMonth.systemCostUsd.toFixed(4)}（{d.currentMonth.billingMonth}）</td>
@@ -199,7 +231,9 @@ export default function ControlPanelLlm ({ loaderData }) {
                                     >
                                         <option value="">（envの既定を使う）</option>
                                         {d.knownModels.map((m) => (
-                                            <option key={m.model} value={m.model}>{m.model}</option>
+                                            <option key={m.model} value={m.model}>
+                                                {m.model}{m.available ? '' : '（経路が未設定）'}
+                                            </option>
                                         ))}
                                     </select>
                                 </td>
@@ -212,20 +246,33 @@ export default function ControlPanelLlm ({ loaderData }) {
                 <p className="llm-note">
                     ここで許可したモデルだけが、ユーザーの設定画面の選択肢に出ます。
                     単価が分からないモデルは上限管理ができないため選べません。
+                    経路が未設定のモデルは、許可してもユーザーの選択肢には出ません。
                 </p>
-                {d.knownModels.map((m) => (
-                    <label key={m.model}>
-                        <input
-                            type="checkbox"
-                            checked={allowed.indexOf(m.model) !== -1}
-                            onChange={() => toggleAllowed(m.model)}
-                        />
-                        {m.model}
-                        <span className="llm-note">
-                            {' '}入力 ${m.input} / 出力 ${m.output} per 1M tokens
-                        </span>
-                    </label>
-                ))}
+                {FAMILIES.map(([family, label]) => {
+                    const models = d.knownModels.filter((m: any) => m.family === family);
+                    if (models.length === 0) {
+                        return null;
+                    }
+                    return (
+                        <fieldset key={family}>
+                            <legend><strong>{label}</strong></legend>
+                            {models.map((m: any) => (
+                                <label key={m.model}>
+                                    <input
+                                        type="checkbox"
+                                        checked={allowed.indexOf(m.model) !== -1}
+                                        onChange={() => toggleAllowed(m.model)}
+                                    />
+                                    {m.model}
+                                    <span className="llm-note">{' '}{describePrice(m)}</span>
+                                    {!m.available && (
+                                        <span className="pico-color-red-500">（経路が未設定）</span>
+                                    )}
+                                </label>
+                            ))}
+                        </fieldset>
+                    );
+                })}
             </article>
 
             <div style={{ display: 'flex', gap: '0.5em', alignItems: 'center' }}>

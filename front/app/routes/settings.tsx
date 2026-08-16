@@ -203,7 +203,9 @@ function LlmSettings () {
                 <option value="auto">おまかせ（問題の難易度に応じて自動で選ぶ）</option>
                 {data.allowedModels.map((m) => (
                     <option key={m.model} value={m.model}>
-                        {m.model}（入力 ${m.inputUsdPerMTok} / 出力 ${m.outputUsdPerMTok} per 1M tokens）
+                        {m.model}（{m.family === 'local'
+                            ? 'ローカル実行・利用額を消費しません'
+                            : `入力 $${m.inputUsdPerMTok} / 出力 $${m.outputUsdPerMTok} per 1M tokens`}）
                     </option>
                 ))}
             </select>
