@@ -136,10 +136,11 @@ LM Studio等のローカルLLMから選べる。
 LLM_PROVIDER=anthropic          # anthropic | vertex
 ANTHROPIC_API_KEY=sk-ant-...
 
-# Claude と Gemini を Vertex AI 経由で（認証はGCPのADC）
+# Claude と Gemini を Vertex AI 経由で
 LLM_PROVIDER=vertex
 VERTEX_PROJECT_ID=my-gcp-project
 VERTEX_REGION=global
+GOOGLE_APPLICATION_CREDENTIALS=/app/secrets/gcp-sa.json  # 省略時はADC
 
 # Gemini だけを Gemini Developer API で（Vertexを使わない場合）
 GEMINI_API_KEY=...
@@ -166,14 +167,73 @@ GPT-5世代が `max_tokens` ではなく `max_completion_tokens` を要求する
 APIはコンテナの中で動くので、ホストのLM Studioを指すURLは `localhost` ではなく
 `host.docker.internal` になる（Linux向けに`compose.yaml`で`extra_hosts`を張ってある）。
 
+### Vertex AI（Gemini Enterprise Agent Platform）をサービスアカウントで使う
+
+Vertex AI経由のClaude・Geminiは、既定ではADC
+（`gcloud auth application-default login` やGCE/Cloud Runのメタデータサーバ）で認証する。
+開発者個人のログインに紐づかない資格情報で動かしたい場合は、
+サービスアカウントの鍵を置いて `GOOGLE_APPLICATION_CREDENTIALS` で指す。
+
+鍵の作成に必要なロールは **Vertex AI ユーザー**（`roles/aiplatform.user`）だけでよい。
+
+```sh
+PROJECT_ID=my-gcp-project
+SA=practice-judge-llm
+
+gcloud iam service-accounts create "$SA" --project "$PROJECT_ID"
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+    --member="serviceAccount:$SA@$PROJECT_ID.iam.gserviceaccount.com" \
+    --role=roles/aiplatform.user
+gcloud iam service-accounts keys create secrets/gcp-sa.json \
+    --iam-account="$SA@$PROJECT_ID.iam.gserviceaccount.com"
+```
+
+```sh
+# .env
+GOOGLE_APPLICATION_CREDENTIALS=/app/secrets/gcp-sa.json
+```
+
+鍵は `secrets/` に置く。中身は`.gitignore`してあり、`compose.yaml`が `./secrets` を
+コンテナの `/app/secrets` へ読み取り専用でマウントする。`.env`に書くのは
+**コンテナから見たパス**であってホストのパスではない
+（`start-native.sh`でDockerを使わずに動かす場合はホストの絶対パスを書く）。
+`.dockerignore`にも入れてあるので、鍵がイメージに焼き込まれることはない。
+
+変数名をGCP標準の `GOOGLE_APPLICATION_CREDENTIALS` のままにしてあるのは、
+これが`google-auth-library`自身が読む名前でもあるため。こちらの実装を通らない経路でも
+同じ鍵が効くので、資格情報の置き場所が1か所で済む。
+
+鍵を指定した場合は `VERTEX_PROJECT_ID` を省略できる（鍵の`project_id`が使われる）。
+省略可能にしてあるのは、`VERTEX_PROJECT_ID`の書き忘れでGeminiが黙って
+Gemini Developer API側の経路に落ちるのを防ぐため。
+
+鍵は**起動時に1度だけ読んで検証する**（存在・JSONとして妥当・`type`が`service_account`・
+`client_email`がある）。不備があってもAPIサーバは起動し、
+管理画面の稼働状況にその経路が「未設定」と理由付きで出る。
+`gcloud auth application-default login` が出力するユーザー資格情報のJSONを
+間違って置くのがありがちな失敗で、そのままSDKに渡すと原因の分かりにくい英語エラーになる。
+検証を通った場合は管理画面にサービスアカウントのアドレスが出るので、
+どの資格情報で動いているかを画面から確認できる（秘密鍵は読み捨てていて、ログにも画面にも出ない）。
+
+不備があるときにADCへ黙って落とさないのは、鍵を置いたつもりの環境が別の資格情報で
+動いてしまうと、権限や課金先がずれていても気づけないため。
+
 SDKはいずれも遅延`require`にしてあり、使わない経路の依存は未インストールでも起動できる
 （`@anthropic-ai/vertex-sdk` と `@google/genai` は `google-auth-library` 系を芋づるで引き込むため）。
+`google-auth-library`だけは`package.json`に直接の依存として書いてある。
+サービスアカウント鍵を`@anthropic-ai/vertex-sdk`に渡すには`GoogleAuth`を自前で組み立てる必要があり、
+他パッケージの推移的依存をそのまま`require`するのは壊れやすいため。
 ローカルLLMはSDKを使わずfetchで直接叩いているので依存が増えない。
 
 金額の上限やモデルの割り当ては**envではなくDBに置いてあり、管理画面から変更する**。
 `/control-panel/llm` 以下に、全体設定・ユーザー別上限・違反記録・会話の監査がある。
 経路が設定されていないモデルは、管理画面で許可してもユーザーの選択肢には出ない
 （許可設定はDB・経路の設定はenvにあり別々に変わるので、参照のたびに突き合わせている）。
+
+稼働状況の一覧には、ClaudeとGeminiについて**排他な経路の両方**を出し、
+実際に使う側を「使用中」、使わない側を「未使用（切り替え方）」と示す。
+使われない側を隠すと、設定してあるのに使われていないのか設定自体が効いていないのかを
+区別できず、特にVertexは経路を切り替えて実際に呼ぶまで鍵の正しさが分からなくなるため。
 
 ローカルLLMは**単価0**として扱う。電気代はAPI課金ではないので計上しようがなく、
 結果として月次上限を素通りするが、これは意図通り（ローカルなら使い放題でよい）。
