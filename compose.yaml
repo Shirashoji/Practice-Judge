@@ -62,6 +62,11 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       VERTEX_PROJECT_ID: ${VERTEX_PROJECT_ID:-}
       VERTEX_REGION: ${VERTEX_REGION:-}
+      # Vertexをサービスアカウントで使う場合の鍵のパス。
+      # ./secrets を /app/secrets にマウントしているので、
+      # .env に書くのはコンテナ側のパス（例: /app/secrets/gcp-sa.json）。
+      # 未設定ならADCにフォールバックする。
+      GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
@@ -78,6 +83,8 @@ services:
       - dbdata:/data
       - ./static:/app/static:ro
       - ./DB_BACKUP:/app/DB_BACKUP
+      # サービスアカウント鍵の置き場所。読み取り専用でよい。
+      - ./secrets:/app/secrets:ro
     depends_on:
       db-init:
         condition: service_completed_successfully

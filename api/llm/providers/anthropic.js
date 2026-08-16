@@ -19,15 +19,32 @@ function createRawClient (provider) {
             throw new Error('Vertexを使うには @anthropic-ai/vertex-sdk のインストールが必要です（npm i @anthropic-ai/vertex-sdk）。');
         }
 
+        // 鍵の検証を先にする。プロジェクトIDは鍵から取ることもあるので、
+        // 鍵が壊れている場合に「VERTEX_PROJECT_IDが未設定」とだけ言われても原因に辿り着けない。
+        config.assertVertexCredentials();
+
         if (config.VERTEX_PROJECT_ID === '') {
             throw new Error('VERTEX_PROJECT_ID が設定されていません。');
         }
 
-        // 認証はGCPのADC（gcloud auth application-default login / メタデータサーバ）に任せる。
-        return new AnthropicVertex({
+        const opts = {
             projectId: config.VERTEX_PROJECT_ID,
             region: config.VERTEX_REGION,
-        });
+        };
+
+        // サービスアカウント鍵が設定されていればそれを使う。
+        // 渡さなければvertex-sdkが自前でGoogleAuthを組み立ててADC
+        // （gcloud auth application-default login / メタデータサーバ）に落ちる。
+        const authOptions = config.vertexAuthOptions();
+        if (authOptions != null) {
+            // vertex-sdkのgoogleAuthオプションはGoogleAuthのインスタンスを要求するので、
+            // ここだけは自前で組み立てる（@google/genai側はキーファイルのパスを渡せる）。
+            // 推移的依存に頼らないよう、package.jsonに直接の依存として書いてある。
+            const { GoogleAuth } = require('google-auth-library');
+            opts.googleAuth = new GoogleAuth(authOptions);
+        }
+
+        return new AnthropicVertex(opts);
     }
 
     const Anthropic = require('@anthropic-ai/sdk');

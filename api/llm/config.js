@@ -4,6 +4,8 @@
 // 金額や難易度マッピングのように管理画面から変更するものはDB（llm_settings）に置く。
 // 両方に置くと二重管理になって必ずズレる。
 
+const fs = require('node:fs');
+
 const { db } = require('../db.js');
 
 // ------------------------------------------------------------
@@ -14,8 +16,98 @@ const { db } = require('../db.js');
 // Geminiとローカルモデルの経路はこの値では決まらない（後述のproviderForを参照）。
 const PROVIDER = process.env.LLM_PROVIDER || 'anthropic';
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || '';
-const VERTEX_PROJECT_ID = process.env.VERTEX_PROJECT_ID || '';
+
+// ------------------------------------------------------------
+// Vertex AI（現 Gemini Enterprise Agent Platform）の認証
+//
+// サービスアカウントの鍵(JSON)へのパスを指定すると、その鍵で認証する。
+// 未指定なら従来どおりADC（gcloud auth application-default login / メタデータサーバ）。
+//
+// 変数名をGCP標準の GOOGLE_APPLICATION_CREDENTIALS のままにしているのは、
+// これがgoogle-auth-library自身が読む名前でもあるため。
+// こちらの実装を通らない経路（コンテナ内のgcloudや別のGCPクライアント）でも
+// 同じ鍵が効くので、資格情報が1か所で済む。
+// ------------------------------------------------------------
+
+const GOOGLE_APPLICATION_CREDENTIALS = process.env.GOOGLE_APPLICATION_CREDENTIALS || '';
+
+// Vertex AIを呼ぶのに必要なOAuthスコープ。
+const VERTEX_SCOPE = 'https://www.googleapis.com/auth/cloud-platform';
+
+// 鍵ファイルを起動時に1度だけ読んで検証する。
+//
+// 例外を投げずに状態として持つのは、鍵の設定ミスでAPIサーバ全体を起動不能に
+// しないため（ジャッジや問題閲覧は鍵と無関係）。不備は管理画面の稼働状況に出す。
+//
+// private_key は検証に使わないので読み捨てる。ログにも管理画面にも載せない。
+//
+// returns: { state: 'adc' | 'service-account' | 'error', projectId, clientEmail?, error? }
+function inspectCredentials (keyFile) {
+    if (keyFile === '') {
+        return { state: 'adc', projectId: null };
+    }
+
+    let raw;
+    try {
+        raw = fs.readFileSync(keyFile, 'utf8');
+    }
+    catch (e) {
+        return { state: 'error', projectId: null, error: `${keyFile} を読み取れません（${e.code ?? e.message}）` };
+    }
+
+    let json;
+    try {
+        json = JSON.parse(raw);
+    }
+    catch (e) {
+        return { state: 'error', projectId: null, error: `${keyFile} がJSONとして壊れています` };
+    }
+
+    // APIキーやOAuthクライアントのJSONを間違って置いた場合をここで弾く。
+    // そのまま渡すとgoogle-auth-libraryの英語エラーになって原因が分かりにくい。
+    if (json.type !== 'service_account') {
+        return { state: 'error', projectId: null, error: `${keyFile} はサービスアカウント鍵ではありません（type=${json.type ?? '不明'}）` };
+    }
+    if (typeof json.client_email !== 'string' || json.client_email === '') {
+        return { state: 'error', projectId: null, error: `${keyFile} に client_email がありません` };
+    }
+
+    return {
+        state: 'service-account',
+        projectId: typeof json.project_id === 'string' && json.project_id !== '' ? json.project_id : null,
+        clientEmail: json.client_email,
+    };
+}
+
+const VERTEX_CREDENTIALS = inspectCredentials(GOOGLE_APPLICATION_CREDENTIALS);
+
+// プロジェクトIDは明示指定を優先し、無ければ鍵ファイルのproject_idを使う。
+// 鍵を置いただけでVertex経路に乗るようにしておかないと、VERTEX_PROJECT_IDの
+// 書き忘れでGeminiが黙ってGemini Developer API側に落ちる（下のgeminiProviderを参照）。
+const VERTEX_PROJECT_ID = process.env.VERTEX_PROJECT_ID || VERTEX_CREDENTIALS.projectId || '';
 const VERTEX_REGION = process.env.VERTEX_REGION || 'global';
+
+// google-auth-libraryに渡す認証オプション。
+// 鍵ファイルが無ければundefinedを返し、各SDKの既定（ADC）に委ねる。
+function vertexAuthOptions () {
+    if (VERTEX_CREDENTIALS.state !== 'service-account') {
+        return undefined;
+    }
+    // scopesは明示する。@google/genaiは未指定でも補ってくれるが、
+    // @anthropic-ai/vertex-sdkはgoogleAuthを渡した時点で既定のGoogleAuth
+    // （scopes指定込み）ごと置き換わるので、こちらで付けないとscopeが足りなくなる。
+    return { keyFile: GOOGLE_APPLICATION_CREDENTIALS, scopes: [VERTEX_SCOPE] };
+}
+
+// 鍵ファイルの指定はあるのに使えない場合はここで止める。
+// 黙ってADCにフォールバックすると、鍵を置いたつもりの環境が別の資格情報で
+// 動いてしまい、権限や課金先がずれていても気づけない。
+function assertVertexCredentials () {
+    if (VERTEX_CREDENTIALS.state === 'error') {
+        throw new Error(`GOOGLE_APPLICATION_CREDENTIALS の鍵ファイルが使えません: ${VERTEX_CREDENTIALS.error}`);
+    }
+}
+
 // Vertexを使わずGemini Developer APIを直接叩く場合のキー。
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 
@@ -172,8 +264,9 @@ function providerFor (model) {
 function isProviderConfigured (provider) {
     switch (provider) {
         case 'anthropic':    return ANTHROPIC_API_KEY !== '';
+        // 鍵ファイルが壊れている場合はADCに落ちて別の資格情報で動くのを避けるため未設定扱いにする
         case 'vertex-claude':
-        case 'vertex-gemini': return VERTEX_PROJECT_ID !== '';
+        case 'vertex-gemini': return VERTEX_PROJECT_ID !== '' && VERTEX_CREDENTIALS.state !== 'error';
         case 'gemini-api':   return GEMINI_API_KEY !== '';
         case 'openai':       return OPENAI_API_KEY !== '';
         // モデルの列挙まで揃って初めて使える。URLだけでは何も呼べない。
@@ -196,6 +289,17 @@ function isConfigured () {
     return listKnownModels().some(isModelAvailable);
 }
 
+// Vertex経路の設定内容。どの資格情報で動いているかが分からないと、
+// 権限不足や課金先違いを管理画面から切り分けられない。
+function vertexDetail () {
+    const base = `project=${VERTEX_PROJECT_ID || '未設定'} / region=${VERTEX_REGION}`;
+    switch (VERTEX_CREDENTIALS.state) {
+        case 'service-account': return `${base} / SA: ${VERTEX_CREDENTIALS.clientEmail}`;
+        case 'error':           return `${base} / 鍵ファイルエラー: ${VERTEX_CREDENTIALS.error}`;
+        default:                return `${base} / ADC`;
+    }
+}
+
 // 管理画面の稼働状況表示用。
 // Claudeとgeminiは経路が排他なので、実際に使われる側だけを出す。
 function describeProviders () {
@@ -206,17 +310,13 @@ function describeProviders () {
             id: claude,
             label: claude === 'vertex-claude' ? 'Claude（Vertex AI）' : 'Claude（Anthropic API）',
             configured: isProviderConfigured(claude),
-            detail: claude === 'vertex-claude'
-                ? `project=${VERTEX_PROJECT_ID || '未設定'} / region=${VERTEX_REGION}`
-                : 'ANTHROPIC_API_KEY',
+            detail: claude === 'vertex-claude' ? vertexDetail() : 'ANTHROPIC_API_KEY',
         },
         {
             id: gemini,
             label: gemini === 'vertex-gemini' ? 'Gemini（Vertex AI）' : 'Gemini（Gemini API）',
             configured: isProviderConfigured(gemini),
-            detail: gemini === 'vertex-gemini'
-                ? `project=${VERTEX_PROJECT_ID || '未設定'} / region=${VERTEX_REGION}`
-                : 'GEMINI_API_KEY',
+            detail: gemini === 'vertex-gemini' ? vertexDetail() : 'GEMINI_API_KEY',
         },
         {
             id: 'openai',
@@ -363,6 +463,8 @@ module.exports = {
     ANTHROPIC_API_KEY,
     VERTEX_PROJECT_ID,
     VERTEX_REGION,
+    vertexAuthOptions,
+    assertVertexCredentials,
     GEMINI_API_KEY,
     OPENAI_API_KEY,
     OPENAI_BASE_URL,

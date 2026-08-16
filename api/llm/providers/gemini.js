@@ -31,14 +31,21 @@ function createRawClient (provider) {
     const { GoogleGenAI } = loadSDK();
 
     if (provider === 'vertex-gemini') {
+        // 鍵の検証を先にする。プロジェクトIDは鍵から取ることもあるので、
+        // 鍵が壊れている場合に「VERTEX_PROJECT_IDが未設定」とだけ言われても原因に辿り着けない。
+        config.assertVertexCredentials();
+
         if (config.VERTEX_PROJECT_ID === '') {
             throw new Error('VERTEX_PROJECT_ID が設定されていません。');
         }
-        // 認証はGCPのADC（gcloud auth application-default login / メタデータサーバ）に任せる。
         return new GoogleGenAI({
             vertexai: true,
             project: config.VERTEX_PROJECT_ID,
             location: config.VERTEX_REGION,
+            // サービスアカウント鍵が設定されていればそれを使う。
+            // undefinedならSDKの既定であるADC（gcloud auth application-default login /
+            // メタデータサーバ）にそのまま任せる。
+            googleAuthOptions: config.vertexAuthOptions(),
         });
     }
 
