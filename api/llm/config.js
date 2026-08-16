@@ -63,29 +63,39 @@ const MODEL_CLASSIFY = process.env.LLM_MODEL_CLASSIFY || 'claude-haiku-4-5';
 // ------------------------------------------------------------
 
 const BUILTIN_MODELS = {
-    'claude-opus-5':          { family: 'claude', input: 5.00, output: 25.00, effort: true,  adaptiveThinking: true },
-    'claude-opus-4-8':        { family: 'claude', input: 5.00, output: 25.00, effort: true,  adaptiveThinking: true },
-    'claude-sonnet-5':        { family: 'claude', input: 3.00, output: 15.00, effort: true,  adaptiveThinking: true },
-    'claude-sonnet-4-6':      { family: 'claude', input: 3.00, output: 15.00, effort: true,  adaptiveThinking: true },
-    'claude-haiku-4-5':       { family: 'claude', input: 1.00, output: 5.00,  effort: false, adaptiveThinking: false },
+    'claude-opus-5':          { family: 'claude', input: 5.00, output: 25.00, maxTokens: 8000, effort: true,  adaptiveThinking: true },
+    'claude-opus-4-8':        { family: 'claude', input: 5.00, output: 25.00, maxTokens: 8000, effort: true,  adaptiveThinking: true },
+    'claude-sonnet-5':        { family: 'claude', input: 3.00, output: 15.00, maxTokens: 8000, effort: true,  adaptiveThinking: true },
+    'claude-sonnet-4-6':      { family: 'claude', input: 3.00, output: 15.00, maxTokens: 8000, effort: true,  adaptiveThinking: true },
+    'claude-haiku-4-5':       { family: 'claude', input: 1.00, output: 5.00,  maxTokens: 4000, effort: false, adaptiveThinking: false },
 
-    'gemini-3-pro-preview':   { family: 'gemini', input: 2.00, output: 12.00 },
-    'gemini-3-flash-preview': { family: 'gemini', input: 0.50, output: 3.00 },
-    'gemini-2.5-pro':         { family: 'gemini', input: 1.25, output: 10.00 },
-    'gemini-2.5-flash':       { family: 'gemini', input: 0.30, output: 2.50 },
-    'gemini-2.5-flash-lite':  { family: 'gemini', input: 0.10, output: 0.40 },
+    // 3.7/3.6 Flashは2026-12-31までの割引価格。2027-01-01に値上がりするので要更新。
+    'gemini-3.7-flash':       { family: 'gemini', input: 0.75, output: 3.75,  maxTokens: 8000 },
+    'gemini-3.6-flash':       { family: 'gemini', input: 0.75, output: 3.75,  maxTokens: 8000 },
+    'gemini-3.5-flash':       { family: 'gemini', input: 1.50, output: 9.00,  maxTokens: 8000 },
+    'gemini-3.5-flash-lite':  { family: 'gemini', input: 0.30, output: 2.50,  maxTokens: 4000 },
+    'gemini-3.1-pro-preview': { family: 'gemini', input: 2.00, output: 12.00, maxTokens: 8000 },
+    'gemini-3.1-flash-lite':  { family: 'gemini', input: 0.25, output: 1.50,  maxTokens: 4000 },
+    'gemini-2.5-pro':         { family: 'gemini', input: 1.25, output: 10.00, maxTokens: 8000 },
+    'gemini-2.5-flash':       { family: 'gemini', input: 0.30, output: 2.50,  maxTokens: 8000 },
+    'gemini-2.5-flash-lite':  { family: 'gemini', input: 0.10, output: 0.40,  maxTokens: 4000 },
 
     // GPT-5世代はreasoning_effortを受け取るのでeffort: trueにする。
     // Chat Completionsでは max_tokens ではなく max_completion_tokens を要求する点が
     // 他と違う（openai_compatアダプタが吸収する）。
-    'gpt-5.6-sol':            { family: 'openai', input: 5.00, output: 30.00, effort: true },
-    'gpt-5.6-terra':          { family: 'openai', input: 2.50, output: 15.00, effort: true },
-    'gpt-5.6-luna':           { family: 'openai', input: 1.00, output: 6.00,  effort: true },
+    'gpt-5.6-sol':            { family: 'openai', input: 5.00, output: 30.00, maxTokens: 8000, effort: true },
+    'gpt-5.6-terra':          { family: 'openai', input: 2.50, output: 15.00, maxTokens: 8000, effort: true },
+    'gpt-5.6-luna':           { family: 'openai', input: 1.00, output: 6.00,  maxTokens: 8000, effort: true },
 };
 
 // ローカルモデルは実行コストが計上できない（電気代はAPI課金ではない）ので単価0で扱う。
 // 結果として上限判定を素通りするが、これは意図通り。ローカルなら使い放題でよい。
-const LOCAL_MODEL_ENTRY = { family: 'local', input: 0, output: 0 };
+//
+// maxTokensを他より大幅に小さくしているのは、ローカルサーバのコンテキスト長が
+// モデルの上限ではなくロード時の設定で決まるため。LM Studioの既定は8192で、
+// systemプロンプト＋ツール定義だけで2000トークン以上使う。ここを8000にすると
+// 入力と合わせてコンテキストを超える。足りなければ LLM_MAX_TOKENS で上書きする。
+const LOCAL_MODEL_ENTRY = { family: 'local', input: 0, output: 0, maxTokens: 2000 };
 
 const FALLBACK_PRICING = { input: 5.00, output: 25.00 };
 
@@ -231,9 +241,26 @@ function describeProviders () {
 // トークン消費が直接効くので既定はmediumにしておく。
 const EFFORT = process.env.LLM_EFFORT || 'medium';
 
-// 1ターンの出力上限。thinkingが有効なモデルでは思考トークンもここに含まれるため、
-// 途中で切れないよう余裕を持たせる。
-const MAX_TOKENS = Number(process.env.LLM_MAX_TOKENS || 8000);
+// 1ターンの出力上限。
+//
+// 適正値はモデルごとに違うので、既定は登録簿（BUILTIN_MODELS.maxTokens）に持たせる。
+// 思考する世代は思考トークンもこの枠に含まれるため余裕がいる一方、
+// ローカルモデルはロード時のコンテキスト長に縛られて逆に小さくする必要がある。
+//
+// LLM_MAX_TOKENS を設定した場合は全モデルでそちらを優先する
+// （運用側が意図的に絞りたい・広げたいケースを塞がないため）。
+const MAX_TOKENS_OVERRIDE = process.env.LLM_MAX_TOKENS
+    ? Number(process.env.LLM_MAX_TOKENS)
+    : null;
+
+const DEFAULT_MAX_TOKENS = 4000;
+
+function getMaxTokens (model) {
+    if (MAX_TOKENS_OVERRIDE != null && Number.isFinite(MAX_TOKENS_OVERRIDE) && MAX_TOKENS_OVERRIDE > 0) {
+        return MAX_TOKENS_OVERRIDE;
+    }
+    return getModelEntry(model)?.maxTokens ?? DEFAULT_MAX_TOKENS;
+}
 
 // ------------------------------------------------------------
 // llm_settings（KVストア）
@@ -345,7 +372,7 @@ module.exports = {
     MODEL_CHAT,
     MODEL_CLASSIFY,
     EFFORT,
-    MAX_TOKENS,
+    getMaxTokens,
     isConfigured,
     getPricing,
     getCapabilities,
