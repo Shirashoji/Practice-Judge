@@ -7,3 +7,4 @@
 # （composeが ./secrets をマウントするので、ディレクトリが無いと起動できない）
 secrets/*
 !secrets/.gitkeep
+.claude/settings.json
