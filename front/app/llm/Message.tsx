@@ -1,10 +1,8 @@
 // チャット1件分の描画。
 //
-// Markdownライブラリは入れていない。LLMの出力で表示上重要なのは実質コードブロックだけで、
-// そこは既存の AceEditorReadOnly に流したほうが初学者にとって読みやすい。
-// 本文は white-space: pre-wrap の素のテキストとして出す。
-
-import { useState } from 'react';
+import { isValidElement, useState, type ReactElement, type ReactNode } from 'react';
+import Markdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { AceEditorReadOnly } from '../ace_editor';
 
 // コードフェンスの言語表記を、このジャッジが扱う言語名に寄せる
@@ -23,51 +21,90 @@ const FENCE_LANGUAGE: Record<string, string> = {
     html: 'html',
 };
 
-// ```lang ... ``` で分割する
-function splitFences (text: string) {
-    const parts: Array<{ type: 'text' | 'code'; body: string; language?: string }> = [];
-    const re = /```([\w+#-]*)\n?([\s\S]*?)```/g;
-    let last = 0;
-    let m: RegExpExecArray | null;
+type CodeElementProps = {
+    className?: string;
+    children?: unknown;
+};
 
-    while ((m = re.exec(text)) !== null) {
-        if (m.index > last) {
-            parts.push({ type: 'text', body: text.slice(last, m.index) });
+// CommonMarkでは、句読点から始まる **強調** が日本語の文字に挟まれていると
+// delimiterとして認識されないことがある。通常のMarkdown処理後にtextのまま残った
+// 記法だけをstrongへ変換する（code / inlineCodeの中はtextノードではないので対象外）。
+function remarkCjkStrongFallback () {
+    return (tree: any) => {
+        function visit (node: any) {
+            if (!Array.isArray(node.children)) {
+                return;
+            }
+
+            const children = [];
+            for (const child of node.children) {
+                if (child.type !== 'text' || !child.value.includes('**')) {
+                    visit(child);
+                    children.push(child);
+                    continue;
+                }
+
+                const re = /\*\*(?=\S)(.+?\S)\*\*/g;
+                let last = 0;
+                let match: RegExpExecArray | null;
+                while ((match = re.exec(child.value)) !== null) {
+                    if (match.index > last) {
+                        children.push({ type: 'text', value: child.value.slice(last, match.index) });
+                    }
+                    children.push({
+                        type: 'strong',
+                        children: [{ type: 'text', value: match[1] }],
+                    });
+                    last = match.index + match[0].length;
+                }
+
+                if (last === 0) {
+                    children.push(child);
+                }
+                else if (last < child.value.length) {
+                    children.push({ type: 'text', value: child.value.slice(last) });
+                }
+            }
+            node.children = children;
         }
-        parts.push({
-            type: 'code',
-            language: FENCE_LANGUAGE[(m[1] || '').toLowerCase()] ?? 'text',
-            body: m[2].replace(/\n$/, ''),
-        });
-        last = m.index + m[0].length;
+
+        visit(tree);
+    };
+}
+
+function MarkdownCodeBlock ({ children }: { children?: ReactNode }) {
+    if (!isValidElement(children)) {
+        return <pre>{children}</pre>;
     }
-    if (last < text.length) {
-        parts.push({ type: 'text', body: text.slice(last) });
-    }
-    return parts;
+
+    const code = children as ReactElement<CodeElementProps>;
+    const className = code.props.className ?? '';
+    const match = /(?:^|\s)language-([\w+#-]+)/i.exec(className);
+    const language = FENCE_LANGUAGE[(match?.[1] ?? '').toLowerCase()] ?? 'text';
+    const value = String(code.props.children ?? '').replace(/\n$/, '');
+
+    return (
+        <div className="llm-markdown-code">
+            <AceEditorReadOnly language={language} value={value} expand={true} />
+        </div>
+    );
 }
 
 export function MessageText ({ text }: { text: string }) {
     return (
-        <>
-            {splitFences(text).map((part, i) => {
-                if (part.type === 'code') {
-                    return (
-                        <div key={i} style={{ margin: '0.5em 0' }}>
-                            <AceEditorReadOnly language={part.language} value={part.body} expand={true} />
-                        </div>
-                    );
-                }
-                if (part.body.trim() === '') {
-                    return null;
-                }
-                return (
-                    <p key={i} style={{ whiteSpace: 'pre-wrap', margin: '0.4em 0' }}>
-                        {part.body.trim()}
-                    </p>
-                );
-            })}
-        </>
+        <div className="llm-markdown">
+            <Markdown
+                remarkPlugins={[remarkGfm, remarkCjkStrongFallback]}
+                components={{
+                    pre: MarkdownCodeBlock,
+                    a: ({ children, ...props }) => (
+                        <a {...props} target="_blank" rel="noopener noreferrer">{children}</a>
+                    ),
+                }}
+            >
+                {text}
+            </Markdown>
+        </div>
     );
 }
 

@@ -215,6 +215,79 @@ button.searchbtn {
     margin-bottom: 0.2em;
 }
 
+/* Markdownはチャット本文の読みやすさを優先し、通常ページより密に表示する */
+.llm-markdown {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.llm-markdown > :first-child {
+    margin-top: 0;
+}
+
+.llm-markdown > :last-child {
+    margin-bottom: 0;
+}
+
+.llm-markdown p,
+.llm-markdown ul,
+.llm-markdown ol,
+.llm-markdown blockquote,
+.llm-markdown table,
+.llm-markdown-code {
+    margin-top: 0.45em;
+    margin-bottom: 0.45em;
+}
+
+.llm-markdown h1,
+.llm-markdown h2,
+.llm-markdown h3,
+.llm-markdown h4,
+.llm-markdown h5,
+.llm-markdown h6 {
+    line-height: 1.3;
+    margin: 0.7em 0 0.3em;
+}
+
+.llm-markdown h1 { font-size: 1.25em; }
+.llm-markdown h2 { font-size: 1.18em; }
+.llm-markdown h3 { font-size: 1.12em; }
+.llm-markdown h4 { font-size: 1.06em; }
+.llm-markdown h5,
+.llm-markdown h6 { font-size: 1em; }
+
+.llm-markdown li {
+    margin-bottom: 0.15em;
+}
+
+.llm-markdown blockquote {
+    padding: 0.35em 0.7em;
+    border-left: 3px solid var(--llm-pane-border);
+    color: var(--pico-muted-color);
+}
+
+.llm-markdown blockquote > :last-child {
+    margin-bottom: 0;
+}
+
+.llm-markdown :not(pre) > code {
+    padding: 0.1em 0.3em;
+    border-radius: 0.2em;
+    background: var(--pico-code-background-color);
+    color: var(--pico-code-color);
+}
+
+.llm-markdown table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+.llm-markdown-code {
+    max-width: 100%;
+    overflow-x: auto;
+}
+
 /* --- チャット専用の2ペイン画面 --- */
 
 .llm-chat-page {
