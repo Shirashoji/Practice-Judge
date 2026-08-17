@@ -2,7 +2,9 @@
 //
 import { isValidElement, useState, type ReactElement, type ReactNode } from 'react';
 import Markdown from 'react-markdown';
+import rehypeKatex from 'rehype-katex';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
 import { AceEditorReadOnly } from '../ace_editor';
 
 // コードフェンスの言語表記を、このジャッジが扱う言語名に寄せる
@@ -94,7 +96,8 @@ export function MessageText ({ text }: { text: string }) {
     return (
         <div className="llm-markdown">
             <Markdown
-                remarkPlugins={[remarkGfm, remarkCjkStrongFallback]}
+                remarkPlugins={[remarkGfm, remarkMath, remarkCjkStrongFallback]}
+                rehypePlugins={[rehypeKatex]}
                 components={{
                     pre: MarkdownCodeBlock,
                     a: ({ children, ...props }) => (
