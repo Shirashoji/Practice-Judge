@@ -4,7 +4,7 @@
 // 一方向説明から遷移してきたときは、その1ターン目が履歴としてそのまま引き継がれる。
 
 import { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useLocation, useNavigate } from 'react-router';
 import 'katex/dist/katex.min.css';
 import { BASEURL } from '../backend_url';
 import { AceEditorReadOnly } from '../ace_editor';
@@ -12,6 +12,7 @@ import { toJST } from '../utils';
 import { Statement } from '../llm/Statement';
 import { Conversation, MessageText } from '../llm/Message';
 import { sendMessage } from '../llm/client';
+import { GenerationProgress, INITIAL_PROGRESS, type ProgressState } from '../llm/GenerationProgress';
 
 export function meta ({ data }: any) {
     const title = data?.conversation?.problem_title ?? '会話';
@@ -80,12 +81,16 @@ export default function LlmChat ({ loaderData }) {
     const [streaming, setStreaming] = useState(false);
     const [liveText, setLiveText] = useState('');
     const [liveTools, setLiveTools] = useState<any[]>([]);
+    const [progress, setProgress] = useState<ProgressState>(INITIAL_PROGRESS);
+    const [contextTab, setContextTab] = useState(submission == null ? 'problem' : 'submission');
     const [error, setError] = useState('');
     const [notice, setNotice] = useState('');
 
     const scrollRef = useRef<HTMLDivElement>(null);
     const abortRef = useRef<AbortController | null>(null);
     const navigate = useNavigate();
+    const location = useLocation();
+    const openingStartedRef = useRef(false);
 
     // 新しい発言が増えたら一番下へ
     useEffect(() => {
@@ -97,9 +102,8 @@ export default function LlmChat ({ loaderData }) {
 
     useEffect(() => () => abortRef.current?.abort(), []);
 
-    async function submit (e) {
-        e.preventDefault();
-        const message = input.trim();
+    async function send (rawMessage: string) {
+        const message = rawMessage.trim();
         if (message === '' || streaming) {
             return;
         }
@@ -110,6 +114,7 @@ export default function LlmChat ({ loaderData }) {
         setStreaming(true);
         setLiveText('');
         setLiveTools([]);
+        setProgress(INITIAL_PROGRESS);
         setError('');
         setNotice('');
 
@@ -122,6 +127,18 @@ export default function LlmChat ({ loaderData }) {
             await sendMessage(conversation.id, message, (ev: any) => {
                 if (ev.type === 'text') {
                     setLiveText((prev) => prev + ev.delta);
+                }
+                else if (ev.type === 'progress') {
+                    setProgress((prev) => ({ ...prev, phase: ev.phase, message: ev.message }));
+                }
+                else if (ev.type === 'reasoning_activity') {
+                    setProgress((prev) => ({
+                        ...prev,
+                        phase: 'reasoning',
+                        message: 'AIが回答を考えています',
+                        reasoningChars: prev.reasoningChars + (ev.deltaChars ?? 0),
+                        summary: prev.summary + (ev.summaryDelta ?? ''),
+                    }));
                 }
                 else if (ev.type === 'tool_use') {
                     setLiveTools((prev) => [...prev, { id: ev.toolUseId, name: ev.name, state: 'running' }]);
@@ -168,6 +185,20 @@ export default function LlmChat ({ loaderData }) {
         catch (e) { /* 取得できなくても画面は保つ */ }
     }
 
+    function submit (e) {
+        e.preventDefault();
+        void send(input);
+    }
+
+    useEffect(() => {
+        const opening = location.state?.opening;
+        if (!openingStartedRef.current && turns.length === 0 && typeof opening === 'string') {
+            openingStartedRef.current = true;
+            void send(opening);
+            navigate(location.pathname, { replace: true, state: null });
+        }
+    }, []);
+
     const problemId = conversation.problem_id;
 
     return (
@@ -180,40 +211,40 @@ export default function LlmChat ({ loaderData }) {
             </nav>
 
             <div className="llm-chat-grid">
-                {/* 左: 問題文 */}
+                {/* 左: 問題文または、この会話に固定された提出 */}
                 <section className="llm-pane">
-                    <header className="llm-pane-header">📝 問題文</header>
-                    <div className="llm-pane-body">
-                        {problem == null
-                            ? <p>問題文を取得できませんでした。</p>
-                            : (
-                                <>
-                                    <h4>{problem.title}</h4>
-                                    <p className="llm-note">
-                                        実行時間制限: {problem.time_limit_sec} sec ／ メモリ制限: {problem.memory_limit_kb / 1000} MB
-                                    </p>
-                                    <Statement html={problem.statement} />
-                                </>
-                            )}
-                    </div>
-                </section>
-
-                {/* 中: 提出 */}
-                <section className="llm-pane">
-                    <header className="llm-pane-header">
-                        {submission == null ? '💻 提出' : `💻 提出 #${submission.whole.id}`}
+                    <header className="llm-pane-header llm-context-tabs">
+                        <button
+                            type="button"
+                            className={contextTab === 'problem' ? '' : 'secondary outline'}
+                            aria-pressed={contextTab === 'problem'}
+                            onClick={() => setContextTab('problem')}
+                        >
+                            📝 問題文
+                        </button>
+                        {submission != null && (
+                            <button
+                                type="button"
+                                className={contextTab === 'submission' ? '' : 'secondary outline'}
+                                aria-pressed={contextTab === 'submission'}
+                                onClick={() => setContextTab('submission')}
+                            >
+                                💻 提出 #{submission.whole.id}
+                            </button>
+                        )}
                     </header>
                     <div className="llm-pane-body">
-                        {submission == null
-                            ? (
-                                <p>
-                                    この会話には提出が紐づいていません。
-                                    <Link to={`/problems/no/${problemId}`}>問題ページ</Link>からコードを提出すると、
-                                    AIが実行結果を見ながら助言できます。
+                        {contextTab === 'problem' && (problem == null
+                            ? <p>問題文を取得できませんでした。</p>
+                            : <>
+                                <h4>{problem.title}</h4>
+                                <p className="llm-note">
+                                    実行時間制限: {problem.time_limit_sec} sec ／ メモリ制限: {problem.memory_limit_kb / 1000} MB
                                 </p>
-                            )
-                            : (
-                                <>
+                                <Statement html={problem.statement} />
+                            </>)}
+                        {contextTab === 'submission' && submission != null && (
+                            <>
                                     <p>
                                         <span className={STATUS_COLOR[submission.whole.status]}>
                                             <strong>{submission.whole.status}</strong>
@@ -251,8 +282,8 @@ export default function LlmChat ({ loaderData }) {
                                             </table>
                                         </>
                                     )}
-                                </>
-                            )}
+                            </>
+                        )}
                     </div>
                 </section>
 
@@ -270,16 +301,8 @@ export default function LlmChat ({ loaderData }) {
                             <div className="llm-turn llm-turn-assistant">
                                 <div className="llm-turn-role">AI</div>
                                 <div>
-                                    {liveTools.length > 0 && (
-                                        <div className="llm-tool-strip">
-                                            {liveTools.map((t) => (
-                                                <span key={t.id} className={t.state === 'error' ? 'llm-chip llm-chip-error' : 'llm-chip'}>
-                                                    {t.state === 'running' ? '⏳' : (t.state === 'error' ? '⚠️' : '✅')} {t.name}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    )}
-                                    {liveText === '' ? <p aria-busy="true">考えています...</p> : <MessageText text={liveText} />}
+                                    <GenerationProgress progress={progress} tools={liveTools} />
+                                    <MessageText text={liveText} />
                                 </div>
                             </div>
                         )}

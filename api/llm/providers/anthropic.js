@@ -75,7 +75,28 @@ function create (provider) {
                 if (caps.effort && params.effort != null) {
                     body.output_config = { effort: params.effort };
                 }
-                return raw.messages.stream(body);
+                const stream = raw.messages.stream(body);
+                // SDK固有のstreamEventから思考本文そのものではなく受信量だけを公開する。
+                // textなど既存イベントはそのままSDKへ委譲する。
+                return {
+                    on (event, handler) {
+                        if (event === 'reasoning') {
+                            stream.on('streamEvent', (streamEvent) => {
+                                const delta = streamEvent?.delta;
+                                if (delta?.type === 'thinking_delta' && typeof delta.thinking === 'string') {
+                                    handler({ deltaChars: delta.thinking.length });
+                                }
+                            });
+                        }
+                        else {
+                            stream.on(event, handler);
+                        }
+                        return this;
+                    },
+                    finalMessage () {
+                        return stream.finalMessage();
+                    },
+                };
             },
         },
     };

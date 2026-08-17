@@ -7,7 +7,7 @@ import renderMathInElement from '../auto-render';
 import { AceEditorWritable } from '../ace_editor';
 
 import { createPrompt } from '../prompt.ts';
-import { AdvicePanel } from '../llm/AdvicePanel';
+import { ChatLauncher } from '../llm/ChatLauncher';
 
 export function meta({ data }: Route.MetaArgs) {
     const title = data?.title ?? "問題が見つかりません";
@@ -186,7 +186,7 @@ export default function Page({ params, loaderData }) {
                             </>
                         )}
                         {showAdvice && (
-                            <AdvicePanel
+                            <ChatLauncher
                                 problemId={Number(params.problemId)}
                                 skillId="pre_ac_advice"
                                 onClose={() => setShowAdvice(false)}

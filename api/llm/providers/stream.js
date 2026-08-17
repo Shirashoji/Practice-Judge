@@ -7,7 +7,7 @@
 // llm.js は「stream生成 → on('text')登録 → await finalMessage()」の順に使うので、
 // 生成時点で走らせるとハンドラ登録前のデルタを取りこぼしうる。
 
-// run(emitText) は Anthropic形式のメッセージ
+// run(emitText, emitReasoning) は Anthropic形式のメッセージ
 // { content, stop_reason, model, usage } を解決するPromiseを返す非同期関数。
 function makeStream (run) {
     const handlers = new Map();
@@ -27,6 +27,10 @@ function makeStream (run) {
                 started = run((delta) => {
                     for (const h of handlers.get('text') ?? []) {
                         h(delta);
+                    }
+                }, (activity) => {
+                    for (const h of handlers.get('reasoning') ?? []) {
+                        h(activity);
                     }
                 });
             }

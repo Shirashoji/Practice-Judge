@@ -8,6 +8,8 @@ import { BASEURL } from '../backend_url';
 export type LlmEvent =
     | { type: 'meta'; conversationId: number; skillId: string; model: string; modelSource?: string }
     | { type: 'text'; delta: string }
+    | { type: 'progress'; phase: string; message: string; iteration?: number; toolName?: string }
+    | { type: 'reasoning_activity'; deltaChars: number; summaryDelta?: string }
     | { type: 'tool_use'; toolUseId: string; name: string; input: any }
     | { type: 'tool_result'; toolUseId: string; name: string; isError: boolean; summary: string }
     | { type: 'warning'; violationType: string; message: string }
@@ -100,11 +102,21 @@ async function openSSE (path: string, body: any, onEvent: (e: LlmEvent) => void,
 
 // 一方向説明の生成を開始する
 export function requestAdvice (
-    body: { problemId: number; submissionId?: number; skillId?: string },
+    body: { problemId: number; submissionId?: number; skillId?: string; model?: string },
     onEvent: (e: LlmEvent) => void,
     signal?: AbortSignal,
 ) {
     return openSSE('/api/llm/advice', body, onEvent, signal);
+}
+
+export async function createConversation (body: {
+    problemId: number;
+    submissionId?: number;
+    skillId?: string;
+    model?: string;
+}) {
+    const res = await sendJSON('/api/llm/conversations', 'POST', body);
+    return await res.json();
 }
 
 // 既存の会話にメッセージを送る

@@ -152,7 +152,7 @@ function toUsage (usageMetadata) {
     };
 }
 
-async function runStream (raw, params, emitText) {
+async function runStream (raw, params, emitText, emitReasoning) {
     const stream = await raw.models.generateContentStream({
         model: params.model,
         contents: toContents(params.messages),
@@ -190,6 +190,9 @@ async function runStream (raw, params, emitText) {
         for (const part of candidate?.content?.parts ?? []) {
             // 思考の要約は保存も表示もしない（答えの断片が漏れる経路を増やさない）
             if (part.thought === true) {
+                if (typeof part.text === 'string' && part.text !== '') {
+                    emitReasoning({ deltaChars: part.text.length });
+                }
                 continue;
             }
 
@@ -229,7 +232,7 @@ function create (provider) {
     return {
         messages: {
             stream (params) {
-                return makeStream((emitText) => runStream(raw, params, emitText));
+                return makeStream((emitText, emitReasoning) => runStream(raw, params, emitText, emitReasoning));
             },
         },
     };

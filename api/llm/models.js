@@ -65,6 +65,18 @@ function resolveModel (userId, difficulty) {
     return null;
 }
 
+// 会話開始画面で明示されたモデルを解決する。auto は従来の個人設定・
+// 難易度マッピングに従い、具体的なモデル名は現在の許可リストで検証する。
+function resolveRequestedModel (userId, difficulty, requestedModel) {
+    if (requestedModel == null || requestedModel === 'auto') {
+        return resolveModel(userId, difficulty);
+    }
+    if (!isAllowedModel(requestedModel)) {
+        return null;
+    }
+    return { model: requestedModel, source: 'request' };
+}
+
 // 設定画面に出す、モデルごとの単価と相対的な安さ。
 // 「どれを選ぶと枠が長持ちするか」を判断できるようにするのが目的。
 function describeAllowedModels () {
@@ -84,5 +96,6 @@ module.exports = {
     isAllowedModel,
     modelForDifficulty,
     resolveModel,
+    resolveRequestedModel,
     describeAllowedModels,
 };

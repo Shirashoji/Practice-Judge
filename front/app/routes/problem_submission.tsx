@@ -3,7 +3,7 @@ import { Link, useOutletContext } from "react-router";
 import { BASEURL } from "../backend_url";
 import { AceEditorReadOnly } from "../ace_editor.tsx";
 import { toJST } from '../utils';
-import { AdvicePanel } from '../llm/AdvicePanel';
+import { ChatLauncher } from '../llm/ChatLauncher';
 
 // ジャッジが終わった状態。判定中はAIに相談させても実行結果が無く意味がない。
 const FINISHED_STATUSES = ["AC", "WA", "CE", "RE", "TLE", "MLE", "OLE", "IE"];
@@ -210,7 +210,7 @@ export default function Page({ loaderData, params }) {
                     </>
                 )}
                 {showAdvice && (
-                    <AdvicePanel
+                    <ChatLauncher
                         problemId={Number(problemId)}
                         submissionId={whole.id}
                         onClose={() => setShowAdvice(false)}

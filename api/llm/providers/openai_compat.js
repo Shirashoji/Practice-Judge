@@ -130,7 +130,7 @@ async function* iterateSSE (body) {
     }
 }
 
-async function runStream (opts, params, emitText) {
+async function runStream (opts, params, emitText, emitReasoning) {
     const body = {
         model: params.model,
         messages: toMessages(params.system, params.messages),
@@ -173,8 +173,50 @@ async function runStream (opts, params, emitText) {
     let text = '';
     let finishReason = null;
     let usage = null;
+    let pendingContent = '';
+    let insideThink = false;
     // tool_callsはindexごとに分割して届くので、indexをキーに組み立てる。
     const toolCalls = new Map();
+
+    // 一部のローカルモデルは思考をcontent内の<think>タグで返す。
+    // タグがチャンク途中で分断されても、生の内容を本文へ漏らさないよう少量を保留する。
+    const processContent = (deltaText, flush = false) => {
+        pendingContent += deltaText;
+        const marker = insideThink ? '</think>' : '<think>';
+        for (;;) {
+            const index = pendingContent.indexOf(marker);
+            if (index !== -1) {
+                const before = pendingContent.slice(0, index);
+                if (before !== '') {
+                    if (insideThink) {
+                        emitReasoning({ deltaChars: before.length });
+                    }
+                    else {
+                        text += before;
+                        emitText(before);
+                    }
+                }
+                pendingContent = pendingContent.slice(index + marker.length);
+                insideThink = !insideThink;
+                return processContent('', flush);
+            }
+
+            const keep = flush ? 0 : marker.length - 1;
+            if (pendingContent.length <= keep) {
+                return;
+            }
+            const ready = pendingContent.slice(0, pendingContent.length - keep);
+            pendingContent = pendingContent.slice(pendingContent.length - keep);
+            if (insideThink) {
+                emitReasoning({ deltaChars: ready.length });
+            }
+            else {
+                text += ready;
+                emitText(ready);
+            }
+            return;
+        }
+    };
 
     for await (const chunk of iterateSSE(res.body)) {
         if (chunk.usage != null) {
@@ -191,10 +233,17 @@ async function runStream (opts, params, emitText) {
 
         const delta = choice.delta ?? {};
         if (typeof delta.content === 'string' && delta.content !== '') {
-            text += delta.content;
-            emitText(delta.content);
+            processContent(delta.content);
         }
-        // reasoning_content等の思考出力は保存も表示もしない
+        // 生の思考は保存も表示もしない。実際に届いた量だけを通知する。
+        const rawReasoning = delta.reasoning_content ?? delta.reasoning;
+        if (typeof rawReasoning === 'string' && rawReasoning !== '') {
+            emitReasoning({ deltaChars: rawReasoning.length });
+        }
+        // 明示的な要約フィールドだけは、一時的な要約表示に利用できる。
+        if (typeof delta.reasoning_summary === 'string' && delta.reasoning_summary !== '') {
+            emitReasoning({ deltaChars: 0, summaryDelta: delta.reasoning_summary });
+        }
 
         for (const tc of delta.tool_calls ?? []) {
             const index = tc.index ?? 0;
@@ -213,6 +262,7 @@ async function runStream (opts, params, emitText) {
             }
         }
     }
+    processContent('', true);
 
     const content = [];
     if (text !== '') {
@@ -283,7 +333,7 @@ function create (provider) {
     return {
         messages: {
             stream (params) {
-                return makeStream((emitText) => runStream(opts, params, emitText));
+                return makeStream((emitText, emitReasoning) => runStream(opts, params, emitText, emitReasoning));
             },
         },
     };

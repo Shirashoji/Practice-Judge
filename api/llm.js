@@ -220,8 +220,26 @@ async function runToolLoop (req, res, emit, conv, session, pendingUserTurnId) {
 
         let message;
         try {
+            emit('progress', {
+                phase: 'requesting_model',
+                message: i === 0 ? 'AIモデルへ送信しています' : '取得した情報をもとに考えています',
+                iteration: i + 1,
+            });
             const stream = client.messages.stream(params);
-            stream.on('text', (delta) => emit('text', { delta }));
+            let answerStarted = false;
+            stream.on('reasoning', (activity) => {
+                emit('reasoning_activity', {
+                    deltaChars: activity?.deltaChars ?? 0,
+                    summaryDelta: activity?.summaryDelta,
+                });
+            });
+            stream.on('text', (delta) => {
+                if (!answerStarted) {
+                    answerStarted = true;
+                    emit('progress', { phase: 'answering', message: '回答を作成しています', iteration: i + 1 });
+                }
+                emit('text', { delta });
+            });
             message = await stream.finalMessage();
         }
         catch (e) {
@@ -233,10 +251,12 @@ async function runToolLoop (req, res, emit, conv, session, pendingUserTurnId) {
 
         // 永続化はここで必ず行う
         const usage = cost.calcCost(conv.model, message.usage);
+        // 生のthinking / redacted_thinkingは一時的なツールループにだけ使い、DBには残さない。
+        const persistedContent = message.content.filter((block) => block.type === 'text' || block.type === 'tool_use');
         const turnId = store.appendTurn({
             conversationId: conv.id,
             role: 'assistant',
-            content: message.content,
+            content: persistedContent,
             stopReason: message.stop_reason,
             model: conv.model,
             provider: conv.provider,
@@ -273,6 +293,14 @@ async function runToolLoop (req, res, emit, conv, session, pendingUserTurnId) {
                 continue;
             }
             emit('tool_use', { toolUseId: block.id, name: block.name, input: block.input });
+            emit('progress', {
+                phase: 'using_tool',
+                message: block.name === 'list_problem_submissions'
+                    ? '提出履歴を確認しています'
+                    : (block.name === 'get_submission' ? '提出内容と実行結果を確認しています' : '必要な情報を確認しています'),
+                toolName: block.name,
+                iteration: i + 1,
+            });
 
             let result;
             let isError = false;
@@ -342,6 +370,78 @@ async function runToolLoop (req, res, emit, conv, session, pendingUserTurnId) {
 }
 
 // ------------------------------------------------------------
+// POST /api/llm/conversations
+// AIをまだ呼ばずに会話だけを作る。フロントは作成後すぐ専用チャットへ移り、
+// そこで opening を最初のメッセージとして送る。
+// body: { problemId, submissionId?, skillId?, model? }
+// ------------------------------------------------------------
+llmRouter.post('/conversations', loginOnly, (req, res) => {
+    const { user_id } = checkUserStatus(req.session);
+    const gate = preflight(user_id);
+    if (gate != null) {
+        return res.status(gate.status).json({ error: gate.message, code: gate.code });
+    }
+
+    const problemId = Number(req.body?.problemId);
+    if (!Number.isInteger(problemId)) {
+        return res.status(400).json({ error: '問題IDを指定してください。' });
+    }
+    const problem = visibleProblem(problemId, req.session);
+    if (problem == null) {
+        return res.status(404).json({ error: '問題が見つかりません。' });
+    }
+
+    let submission = null;
+    if (req.body?.submissionId != null) {
+        const sid = Number(req.body.submissionId);
+        if (!Number.isInteger(sid)) {
+            return res.status(400).json({ error: '提出IDが不正です。' });
+        }
+        submission = db.prepare(
+            'SELECT id, problem_id, user_id, status FROM submissions WHERE id = ? AND user_id = ?'
+        ).get(sid, user_id);
+        if (submission == null || submission.problem_id !== problemId) {
+            return res.status(403).json({ error: '指定された提出を参照できません。' });
+        }
+    }
+
+    let skillId = req.body?.skillId;
+    if (skillId == null) {
+        skillId = submission == null ? 'pre_ac_advice' : skills.skillForSubmission(submission.status);
+    }
+    if (!skills.isValidSkill(skillId)) {
+        return res.status(400).json({ error: 'skillIdが不正です。' });
+    }
+    if (skillId === 'post_ac_review' && submission?.status !== 'AC') {
+        return res.status(400).json({ error: 'コードの改善提案はAC済みの提出に対してのみ利用できます。' });
+    }
+
+    const resolved = modelPolicy.resolveRequestedModel(user_id, problem.difficulty, req.body?.model);
+    if (resolved == null) {
+        return res.status(400).json({ error: '選択したAIモデルは利用できません。', code: 'MODEL_UNAVAILABLE' });
+    }
+    const settings = store.getUserSettings(user_id);
+    const shareMode = store.effectiveShareMode(user_id);
+    const conversationId = store.createConversation({
+        userId: user_id,
+        problemId,
+        submissionId: submission?.id ?? null,
+        skillId,
+        provider: config.providerFor(resolved.model),
+        model: resolved.model,
+        shareMode,
+        forcedShared: settings.force_shared === 1,
+    });
+    const opening = submission == null
+        ? 'この問題の解き方について相談させてください。まず、考え方のヒントをください。'
+        : (skillId === 'post_ac_review'
+            ? `提出 #${submission.id} がACしました。このコードの改善点を教えてください。`
+            : `提出 #${submission.id} が ${submission.status} になりました。どこが間違っていそうかヒントをください。`);
+
+    return res.status(201).json({ conversationId, opening, model: resolved.model });
+});
+
+// ------------------------------------------------------------
 // POST /api/llm/advice
 // 一方向説明を生成する。会話を新規作成して1ターン目を回す。
 // body: { problemId, submissionId?, skillId? }
@@ -392,7 +492,7 @@ llmRouter.post('/advice', loginOnly, async (req, res) => {
         return res.status(400).json({ error: 'コードの改善提案はAC済みの提出に対してのみ利用できます。' });
     }
 
-    const resolved = modelPolicy.resolveModel(user_id, problem.difficulty);
+    const resolved = modelPolicy.resolveRequestedModel(user_id, problem.difficulty, req.body?.model);
     if (resolved == null) {
         return res.status(503).json({
             error: 'この環境ではAI学習支援が有効になっていません。',

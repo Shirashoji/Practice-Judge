@@ -42,6 +42,19 @@ const DEFINITIONS = {
         },
     },
 
+    list_problem_submissions: {
+        name: 'list_problem_submissions',
+        description: '対象ユーザーがこの問題に行った提出を新しい順に取得する。直近の提出IDを知る場合や、以前の提出との変化を比較する場合に使う。AC以外や判定中の提出も含む。',
+        input_schema: {
+            type: 'object',
+            properties: {
+                limit: { type: 'integer', minimum: 1, maximum: 20, description: '取得件数。省略時は10件、最大20件。' },
+                before_id: { type: 'integer', description: 'この提出IDより前の提出を取得するためのカーソル。' },
+            },
+            required: [],
+        },
+    },
+
     get_editorial: {
         name: 'get_editorial',
         description: 'この問題の公式解説を取得する。AC済みのユーザーに対して、公式解法と本人の解法を比較する目的でのみ使える。AC前は利用できない。',
@@ -169,6 +182,46 @@ function createToolset (ctx, hooks) {
             };
         },
 
+        list_problem_submissions (input) {
+            if (visibleProblem(ctx.problemId) == null) {
+                return denied('指定された問題を参照できません。');
+            }
+
+            const requestedLimit = Number(input?.limit ?? 10);
+            const limit = Number.isInteger(requestedLimit)
+                ? Math.min(20, Math.max(1, requestedLimit))
+                : 10;
+            const beforeId = input?.before_id == null ? null : Number(input.before_id);
+            if (beforeId != null && !Number.isInteger(beforeId)) {
+                return denied('提出履歴のカーソルが不正です。');
+            }
+
+            let cursorQuery = '';
+            const params = [ctx.userId, ctx.problemId];
+            if (beforeId != null) {
+                cursorQuery = 'AND id < ?';
+                params.push(beforeId);
+            }
+            params.push(limit + 1);
+            const rows = db.prepare(`
+                SELECT id AS submission_id, status, code_language AS language,
+                       time_sec, memory_kb, created_at
+                FROM submissions
+                WHERE user_id = ? AND problem_id = ? ${cursorQuery}
+                ORDER BY id DESC
+                LIMIT ?
+            `).all(...params);
+            const hasMore = rows.length > limit;
+            const submissions = rows.slice(0, limit);
+
+            return {
+                problem_id: ctx.problemId,
+                submissions,
+                has_more: hasMore,
+                next_before_id: hasMore ? submissions[submissions.length - 1].submission_id : null,
+            };
+        },
+
         get_editorial () {
             // 解説は答えそのもの。AC前には絶対に渡さない。
             if (ctx.skillId !== 'post_ac_review') {
@@ -243,16 +296,17 @@ function createToolset (ctx, hooks) {
 // このSkillで使えるツールの一覧（動的ローディング）
 function toolsForSkill (skillId) {
     const common = ['check_ac_status', 'get_problem_constraints', 'get_language_usage', 'report_violation'];
+    const submissions = ['list_problem_submissions', 'get_submission'];
 
     if (skillId === 'post_ac_review') {
         // AC済みのレビューでのみ解説を解禁する
-        return [...common, 'get_submission', 'get_editorial'].map((n) => DEFINITIONS[n]);
+        return [...common, ...submissions, 'get_editorial'].map((n) => DEFINITIONS[n]);
     }
     if (skillId === 'wa_diagnosis') {
-        return [...common, 'get_submission'].map((n) => DEFINITIONS[n]);
+        return [...common, ...submissions].map((n) => DEFINITIONS[n]);
     }
     // pre_ac_advice: 提出がまだ無いこともあるが、書いたコードを提出してもらう導線があるので許可する
-    return [...common, 'get_submission'].map((n) => DEFINITIONS[n]);
+    return [...common, ...submissions].map((n) => DEFINITIONS[n]);
 }
 
 module.exports = { DEFINITIONS, createToolset, toolsForSkill };

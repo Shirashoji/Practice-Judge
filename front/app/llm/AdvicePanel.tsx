@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router';
 import { requestAdvice, fetchSettings, LlmRequestError } from './client';
 import { MessageText } from './Message';
 import { ShareModeGate } from './ShareModeGate';
+import { GenerationProgress, INITIAL_PROGRESS, type ProgressState } from './GenerationProgress';
 
 // props: { problemId, submissionId?, skillId?, onClose }
 export function AdvicePanel ({ problemId, submissionId, skillId, onClose }: any) {
@@ -16,6 +17,7 @@ export function AdvicePanel ({ problemId, submissionId, skillId, onClose }: any)
     const [budget, setBudget] = useState<any>(null);
     const [text, setText] = useState('');
     const [tools, setTools] = useState<any[]>([]);
+    const [progress, setProgress] = useState<ProgressState>(INITIAL_PROGRESS);
     const [conversationId, setConversationId] = useState<number | null>(null);
     const [error, setError] = useState('');
     const navigate = useNavigate();
@@ -27,6 +29,7 @@ export function AdvicePanel ({ problemId, submissionId, skillId, onClose }: any)
         setPhase('streaming');
         setText('');
         setTools([]);
+        setProgress(INITIAL_PROGRESS);
         setError('');
 
         const ac = new AbortController();
@@ -39,6 +42,18 @@ export function AdvicePanel ({ problemId, submissionId, skillId, onClose }: any)
                 }
                 else if (e.type === 'text') {
                     setText((prev) => prev + e.delta);
+                }
+                else if (e.type === 'progress') {
+                    setProgress((prev) => ({ ...prev, phase: e.phase, message: e.message }));
+                }
+                else if (e.type === 'reasoning_activity') {
+                    setProgress((prev) => ({
+                        ...prev,
+                        phase: 'reasoning',
+                        message: 'AIが回答を考えています',
+                        reasoningChars: prev.reasoningChars + (e.deltaChars ?? 0),
+                        summary: prev.summary + (e.summaryDelta ?? ''),
+                    }));
                 }
                 else if (e.type === 'tool_use') {
                     setTools((prev) => [...prev, { id: e.toolUseId, name: e.name, state: 'running' }]);
@@ -134,17 +149,7 @@ export function AdvicePanel ({ problemId, submissionId, skillId, onClose }: any)
                 )}
             </header>
 
-            {tools.length > 0 && (
-                <div className="llm-tool-strip">
-                    {tools.map((t) => (
-                        <span key={t.id} className={t.state === 'error' ? 'llm-chip llm-chip-error' : 'llm-chip'}>
-                            {t.state === 'running' ? '⏳' : (t.state === 'error' ? '⚠️' : '✅')} {t.name}
-                        </span>
-                    ))}
-                </div>
-            )}
-
-            {text === '' && phase === 'streaming' && <p aria-busy="true">考えています...</p>}
+            {phase === 'streaming' && <GenerationProgress progress={progress} tools={tools} />}
             <MessageText text={text} />
 
             {error !== '' && <p className="pico-color-red-500">{error}</p>}

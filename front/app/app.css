@@ -215,7 +215,7 @@ button.searchbtn {
     margin-bottom: 0.2em;
 }
 
-/* --- チャット専用の3ペイン画面 --- */
+/* --- チャット専用の2ペイン画面 --- */
 
 .llm-chat-page {
     padding: 0 1rem;
@@ -227,7 +227,7 @@ button.searchbtn {
 
 .llm-chat-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(22rem, 1fr);
     gap: 0.8em;
     height: calc(100vh - 12rem);
     min-height: 30rem;
@@ -259,6 +259,35 @@ button.searchbtn {
     border-bottom: 1px solid var(--llm-pane-border);
     font-weight: bold;
     flex: 0 0 auto;
+}
+
+.llm-context-tabs {
+    display: flex;
+    gap: 0.4em;
+}
+
+.llm-context-tabs button {
+    width: auto;
+    padding: 0.3em 0.7em;
+    margin: 0;
+    font-size: 0.9em;
+}
+
+.llm-generation-progress {
+    margin-bottom: 0.7em;
+    padding: 0.55em 0.7em;
+    border: 1px solid var(--llm-pane-border);
+    border-radius: var(--pico-border-radius);
+    background: var(--header-bg);
+}
+
+.llm-generation-progress p:last-child,
+.llm-progress-status {
+    margin-bottom: 0;
+}
+
+.llm-generation-progress details {
+    margin: 0.35em 0;
 }
 
 .llm-pane-body {
