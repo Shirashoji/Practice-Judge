@@ -4,7 +4,7 @@
 // 一方向説明から遷移してきたときは、その1ターン目が履歴としてそのまま引き継がれる。
 
 import { useState, useEffect, useRef } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router';
+import { Link, useLocation } from 'react-router';
 import 'katex/dist/katex.min.css';
 import { BASEURL } from '../backend_url';
 import { AceEditorReadOnly } from '../ace_editor';
@@ -88,7 +88,6 @@ export default function LlmChat ({ loaderData }) {
 
     const scrollRef = useRef<HTMLDivElement>(null);
     const abortRef = useRef<AbortController | null>(null);
-    const navigate = useNavigate();
     const location = useLocation();
     const openingStartedRef = useRef(false);
 
@@ -102,7 +101,7 @@ export default function LlmChat ({ loaderData }) {
 
     useEffect(() => () => abortRef.current?.abort(), []);
 
-    async function send (rawMessage: string) {
+    async function send (rawMessage: string, onAccepted?: () => void) {
         const message = rawMessage.trim();
         if (message === '' || streaming) {
             return;
@@ -122,10 +121,19 @@ export default function LlmChat ({ loaderData }) {
         abortRef.current = ac;
 
         const collected: any[] = [];
+        let accepted = false;
 
         try {
             await sendMessage(conversation.id, message, (ev: any) => {
-                if (ev.type === 'text') {
+                if (ev.type === 'meta') {
+                    // SSEが開き、サーバが発言を受理したことを確認してから呼び出す。
+                    // 初回発言のhistory stateを先に消すと、通信開始前の失敗時に再試行できなくなる。
+                    if (!accepted) {
+                        accepted = true;
+                        onAccepted?.();
+                    }
+                }
+                else if (ev.type === 'text') {
                     setLiveText((prev) => prev + ev.delta);
                 }
                 else if (ev.type === 'progress') {
@@ -194,8 +202,16 @@ export default function LlmChat ({ loaderData }) {
         const opening = location.state?.opening;
         if (!openingStartedRef.current && turns.length === 0 && typeof opening === 'string') {
             openingStartedRef.current = true;
-            void send(opening);
-            navigate(location.pathname, { replace: true, state: null });
+            void send(opening, () => {
+                // navigate(..., replace) はルートを再評価し、進行中のfetchをcleanupで
+                // abortすることがある。履歴のstateだけを直接消せば画面遷移は起きない。
+                const state = window.history.state;
+                window.history.replaceState(
+                    state == null ? state : { ...state, usr: null },
+                    '',
+                    window.location.href,
+                );
+            });
         }
     }, []);
 
