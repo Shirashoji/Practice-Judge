@@ -304,7 +304,7 @@ export default function LlmChat ({ loaderData }) {
                 </section>
 
                 {/* 右: チャット */}
-                <section className="llm-pane">
+                <section className="llm-pane llm-chat-pane">
                     <header className="llm-pane-header">
                         💬 チャット
                         <span className="llm-note" style={{ marginLeft: '0.5em' }}>{conversation.model}</span>
@@ -340,8 +340,15 @@ export default function LlmChat ({ loaderData }) {
                                 }
                             }}
                         />
-                        <button type="submit" disabled={streaming || input.trim() === ''} aria-busy={streaming ? 'true' : 'false'}>
-                            送信
+                        <button
+                            type="submit"
+                            className="llm-chat-submit"
+                            disabled={streaming || input.trim() === ''}
+                            aria-busy={streaming ? 'true' : 'false'}
+                            aria-label="メッセージを送信"
+                        >
+                            <span aria-hidden="true">➤</span>
+                            <span>送信</span>
                         </button>
                     </form>
                 </section>
