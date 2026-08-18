@@ -549,6 +549,14 @@ button.searchbtn {
     color: rgb(100 116 139);
 }
 
+/* 送信ボタンはアイコン1つ分の枠しか持たない。
+   Picoはaria-busy="true"の要素に::beforeでスピナーを差し込むが、
+   それを許すとアイコンと同じグリッドセルに2つ入って重なり、ボタンが崩れる。
+   ローディング表示は中身のアイコンを差し替えて行うので、こちらは止める。 */
+.llm-composer-send[aria-busy="true"]::before {
+    content: none;
+}
+
 .dark .llm-workspace .llm-turn {
     color: rgb(226 232 240);
 }

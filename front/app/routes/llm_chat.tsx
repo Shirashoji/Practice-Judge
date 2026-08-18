@@ -458,25 +458,39 @@ export default function LlmChat({ loaderData }) {
               />
               <button
                 type="submit"
-                className="!m-0 grid !size-12 shrink-0 place-items-center !rounded-xl !border-0 !bg-indigo-500 !p-0 !text-white !shadow-lg !shadow-indigo-950/50 transition hover:!bg-indigo-400 disabled:!bg-slate-800 disabled:!text-slate-600"
+                className="llm-composer-send !m-0 grid !size-11 shrink-0 place-items-center !rounded-xl !border-0 !bg-indigo-500 !p-0 !text-white !shadow-md !shadow-indigo-500/25 transition hover:!bg-indigo-400 disabled:!bg-slate-200 disabled:!text-slate-400 disabled:!shadow-none dark:!shadow-indigo-950/40 dark:disabled:!bg-white/10 dark:disabled:!text-slate-500"
                 disabled={streaming || input.trim() === ""}
                 aria-busy={streaming ? "true" : "false"}
-                aria-label="メッセージを送信"
+                aria-label={streaming ? "AIが応答中です" : "メッセージを送信"}
               >
-                <svg
-                  viewBox="0 0 24 24"
-                  aria-hidden="true"
-                  className="size-5 fill-none stroke-current"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="m22 2-7 20-4-9-9-4Z" />
-                  <path d="M22 2 11 13" />
-                </svg>
+                {/* ローディングと紙飛行機は同じ枠を使い回す（同時には出さない） */}
+                {streaming ? (
+                  <svg
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                    className="size-5 animate-spin fill-none stroke-current"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                  >
+                    <circle cx="12" cy="12" r="9" className="opacity-30" />
+                    <path d="M21 12a9 9 0 0 0-9-9" />
+                  </svg>
+                ) : (
+                  <svg
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                    className="size-5 fill-none stroke-current"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="m22 2-7 20-4-9-9-4Z" />
+                    <path d="M22 2 11 13" />
+                  </svg>
+                )}
               </button>
             </div>
-            <p className="!m-0 mt-2 text-center !text-[10px] !text-slate-600">
+            <p className="!m-0 mt-2 text-center !text-[10px] !text-slate-500 dark:!text-slate-400">
               Ctrl / ⌘ + Enter で送信
             </p>
           </form>
