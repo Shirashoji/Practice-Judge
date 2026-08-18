@@ -7,6 +7,7 @@ const { checkUserStatus, adminOnly } = require('./logincheck.js');
 const config = require('./llm/config.js');
 const store = require('./llm/store.js');
 const cost = require('./llm/cost.js');
+const { normalizeModelSettings } = require('./llm/admin_settings.js');
 
 const adminLlmRouter = express.Router({ mergeParams: true });
 module.exports = { adminLlmRouter };
@@ -24,6 +25,11 @@ const NUMERIC_KEYS = ['default_shared_limit_usd', 'default_private_limit_usd', '
 const MODE_KEYS = ['default_shared_limit_mode', 'default_private_limit_mode', 'system_limit_mode'];
 
 adminLlmRouter.get('/settings', adminOnly, (req, res) => {
+    const modelSettings = normalizeModelSettings(
+        config.getSettingJSON('allowed_models'),
+        config.getSettingJSON('model_by_difficulty'),
+        config.isKnownModel
+    );
     return res.json({
         provider: config.PROVIDER,
         // 経路はモデルの系列ごとに別（Claude / Gemini / ローカル）なので、まとめて状態を返す
@@ -45,8 +51,8 @@ adminLlmRouter.get('/settings', adminOnly, (req, res) => {
                 usd: config.getSettingNumber('system_monthly_limit_usd'),
             },
         },
-        modelByDifficulty: config.getSettingJSON('model_by_difficulty') || {},
-        allowedModels: config.getSettingJSON('allowed_models') || [],
+        modelByDifficulty: modelSettings.modelByDifficulty,
+        allowedModels: modelSettings.allowedModels,
         knownModels: config.listKnownModels().map((m) => ({
             model: m,
             family: config.getFamily(m),
@@ -86,8 +92,8 @@ adminLlmRouter.put('/settings', adminOnly, (req, res) => {
     // 許可モデルは既知のモデルに限る（単価表に無いモデルを許すと課金額が推定できなくなる）
     let allowedModels = null;
     if (body.allowed_models !== undefined) {
-        if (!Array.isArray(body.allowed_models) || body.allowed_models.length === 0) {
-            return res.status(400).json({ error: '許可モデルは1つ以上の配列で指定してください。' });
+        if (!Array.isArray(body.allowed_models)) {
+            return res.status(400).json({ error: '許可モデルは配列で指定してください。' });
         }
         for (const m of body.allowed_models) {
             if (typeof m !== 'string' || !config.isKnownModel(m)) {
