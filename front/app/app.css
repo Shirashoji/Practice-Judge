@@ -1,7 +1,7 @@
 @import "@picocss/pico/css/pico.slate.css";
 @import "@picocss/pico/css/pico.colors.css";
 @import "tailwindcss";
-@custom-variant dark (&:where(.dark, .dark *));
+@custom-variant dark (&:where(.llm-workspace.dark, .llm-workspace.dark *));
 
 html {
     --header-bg: var(--pico-color-sand-100);
@@ -484,7 +484,7 @@ button.searchbtn {
     --llm-tool-bg: rgb(248 250 252);
 }
 
-.dark .llm-workspace {
+.llm-workspace.dark {
     color-scheme: dark;
     --llm-user-bg: rgb(67 56 202 / 0.3);
     --llm-user-border: rgb(129 140 248 / 0.38);
@@ -557,24 +557,24 @@ button.searchbtn {
     content: none;
 }
 
-.dark .llm-workspace .llm-turn {
+.llm-workspace.dark .llm-turn {
     color: rgb(226 232 240);
 }
 
-.dark .llm-workspace .llm-turn-user {
+.llm-workspace.dark .llm-turn-user {
     color: rgb(238 242 255);
 }
 
-.dark .llm-workspace .llm-turn-role,
-.dark .llm-workspace .llm-turn-user .llm-turn-role {
+.llm-workspace.dark .llm-turn-role,
+.llm-workspace.dark .llm-turn-user .llm-turn-role {
     color: rgb(199 210 254);
 }
 
-.dark .llm-workspace .llm-markdown :where(h1, h2, h3, h4, h5, h6, strong) {
+.llm-workspace.dark .llm-markdown :where(h1, h2, h3, h4, h5, h6, strong) {
     color: rgb(255 255 255);
 }
 
-.dark .llm-workspace .llm-markdown a {
+.llm-workspace.dark .llm-markdown a {
     color: rgb(196 181 253);
 }
 
@@ -586,11 +586,11 @@ button.searchbtn {
     color: rgb(51 65 85);
 }
 
-.dark .llm-context-content :where(h1, h2, h3, h4, h5, h6) {
+.llm-workspace.dark .llm-context-content :where(h1, h2, h3, h4, h5, h6) {
     color: rgb(248 250 252);
 }
 
-.dark .llm-context-content :where(pre, table) {
+.llm-workspace.dark .llm-context-content :where(pre, table) {
     color: rgb(226 232 240);
 }
 

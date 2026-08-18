@@ -29,7 +29,7 @@ export default function LlmLayout ({ loaderData }: any) {
     }
 
     return (
-        <div className="llm-workspace flex h-dvh max-h-dvh flex-col overflow-hidden bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100">
+        <div data-theme={colorMode?.colorMode} className={`llm-workspace ${colorMode?.colorMode ?? 'light'} flex h-dvh max-h-dvh flex-col overflow-hidden bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100`}>
             <header className="flex h-16 shrink-0 items-center justify-between border-b border-slate-200 bg-white/90 px-4 backdrop-blur dark:border-white/10 dark:bg-slate-950/95 md:px-7">
                 <div className="flex min-w-0 items-center gap-3">
                     <Link to="/" className="flex shrink-0 items-center gap-3 !text-slate-900 !no-underline dark:!text-slate-100">
@@ -46,14 +46,16 @@ export default function LlmLayout ({ loaderData }: any) {
                 </div>
 
                 <nav className="flex items-center gap-1.5">
-                    <button
-                        type="button"
-                        onClick={() => colorMode?.setColorMode(colorMode.colorMode === 'light' ? 'dark' : 'light')}
-                        className="!m-0 grid !size-9 place-items-center !rounded-lg !border-0 !bg-slate-100 !p-0 !text-base !text-slate-600 !shadow-none hover:!bg-slate-200 dark:!bg-white/5 dark:!text-slate-300 dark:hover:!bg-white/10"
-                        aria-label={colorMode?.colorMode === 'light' ? 'ダークモードに切り替える' : 'ライトモードに切り替える'}
+                    <select
+                        aria-label="表示テーマ"
+                        value={colorMode?.themeMode ?? 'auto'}
+                        onChange={(e) => colorMode?.setThemeMode(e.target.value)}
+                        className="!m-0 !w-auto !rounded-lg !border-slate-200 !bg-slate-100 !py-2 !pl-2.5 !pr-8 !text-xs !font-semibold !text-slate-600 !shadow-none dark:!border-white/10 dark:!bg-white/5 dark:!text-slate-300"
                     >
-                        <span aria-hidden="true">{colorMode?.colorMode === 'light' ? '☾' : '☀'}</span>
-                    </button>
+                        <option value="auto">◐ Auto</option>
+                        <option value="light">☀ Light</option>
+                        <option value="dark">☾ Dark</option>
+                    </select>
                     <Link to="/problems" className="rounded-lg px-3 py-2 text-sm font-medium !text-slate-600 !no-underline transition hover:bg-slate-100 hover:!text-slate-950 dark:!text-slate-300 dark:hover:bg-white/5 dark:hover:!text-white">
                         問題一覧
                     </Link>

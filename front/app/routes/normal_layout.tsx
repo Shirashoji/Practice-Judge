@@ -62,22 +62,17 @@ function TitleMenu ({ loginInfo }) {
 
     const title = <Link to="/" style={{ fontSize: "2em", textDecoration: "none" }}>Practice Judge</Link>;
 
-    const toggle = () => {
-        if (colorModeObj == null) {
-            return;
-        }
-        const cur = colorModeObj.colorMode;
-        const nex = cur == "light" ? "dark" : "light";
-        colorModeObj.setColorMode(nex);
-    };
-    const themeSwitchLabel = colorModeObj?.colorMode === "light" ? "🌙ダークモードに変える" : "☀️ライトモードに変える";
     const themeSwitch =
-        <button
-            className="contrast"
-            onClick={toggle}
+        <select
+            aria-label="表示テーマ"
+            value={colorModeObj?.themeMode ?? "auto"}
+            onChange={(e) => colorModeObj?.setThemeMode(e.target.value)}
+            style={{ width: "auto", margin: 0, padding: "0.5em 2.2em 0.5em 0.75em" }}
         >
-            {themeSwitchLabel}
-        </button>;
+            <option value="auto">◐ Auto</option>
+            <option value="light">☀ Light</option>
+            <option value="dark">☾ Dark</option>
+        </select>;
 
     let RightMenu = (() => {
         if (!loginInfo.login) {

@@ -275,8 +275,8 @@ export default function LlmChat({ loaderData }) {
 
   const problemId = conversation.problem_id;
   const memoryLimitMb =
-    problem?.memory_kb != null && Number.isFinite(Number(problem.memory_kb))
-      ? Number(problem.memory_kb) / 1000
+    problem?.memory_limit_kb != null && Number.isFinite(Number(problem.memory_limit_kb))
+      ? Number(problem.memory_limit_kb) / 1000
       : null;
 
   return (
