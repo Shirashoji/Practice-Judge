@@ -47,7 +47,7 @@ const TYPE_LABEL = {
 };
 
 export default function ControlPanelLlmConversation ({ loaderData }) {
-    const { conversation: c, turns, toolCalls, violations } = loaderData;
+    const { conversation: c, turns, toolCalls, warnings, violations } = loaderData;
 
     return (
         <main className="container">
@@ -86,13 +86,44 @@ export default function ControlPanelLlmConversation ({ loaderData }) {
                                 {c.forced_shared === 1 && <span className="llm-badge">違反により強制共有</span>}
                             </td>
                         </tr>
-                        <tr><th scope="row">警告回数</th><td>{c.warning_count}</td></tr>
+                        <tr>
+                            <th scope="row">ガードレール作動回数</th>
+                            <td>
+                                {c.warning_count}
+                                <span className="llm-note">（この会話での回数。段階判定は利用者単位の警告で行う）</span>
+                            </td>
+                        </tr>
                         <tr><th scope="row">概算利用額</th><td>${Number(c.total_cost_usd).toFixed(4)}</td></tr>
                         <tr><th scope="row">開始</th><td>{toJST(c.created_at)}</td></tr>
                         <tr><th scope="row">最終更新</th><td>{toJST(c.updated_at)}</td></tr>
                     </tbody>
                 </table>
             </article>
+
+            {warnings.length > 0 && (
+                <article>
+                    <h2>この会話で出した警告</h2>
+                    <p className="llm-note">
+                        警告は違反として記録されておらず、強制共有にもなりません。
+                        取り消しは「AI利用の警告・違反記録」から行えます。
+                    </p>
+                    <table>
+                        <thead>
+                            <tr><th>日時</th><th>種別</th><th>内容</th><th>状態</th></tr>
+                        </thead>
+                        <tbody>
+                            {warnings.map((w) => (
+                                <tr key={w.id}>
+                                    <td>{toJST(w.created_at)}</td>
+                                    <td>{TYPE_LABEL[w.violation_type] ?? w.violation_type}</td>
+                                    <td>{w.reason}</td>
+                                    <td>{w.dismissed === 1 ? `取り消し済み（${w.dismissed_reason}）` : '有効'}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </article>
+            )}
 
             {violations.length > 0 && (
                 <article>

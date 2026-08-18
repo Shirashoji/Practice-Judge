@@ -213,24 +213,48 @@ adminLlmRouter.put('/limits', adminOnly, (req, res) => {
 });
 
 // ------------------------------------------------------------
-// 違反
+// 警告と違反
+//
+// 警告（llm_warnings）は「初回の要求」で積まれるもので、記録は残るが強制共有にはしない。
+// 違反（llm_violations）は「警告後に繰り返した場合」に積まれ、強制共有になる。
+// どちらも誤検知なら取り消せる。警告を取り消すと、その利用者は次回また警告のみから始まる。
 // ------------------------------------------------------------
 
-// 違反者の一覧。取り消し済みは件数に数えない。
+// 警告・違反のある利用者の一覧。取り消し済みは件数に数えない。
+// 警告だけで違反が無い利用者も出す必要があるので、両方を外部結合してから絞る。
 adminLlmRouter.get('/violations', adminOnly, (req, res) => {
     const users = db.prepare(`
-        SELECT v.user_id, u.username,
-               COUNT(*) AS total_count,
-               SUM(CASE WHEN v.dismissed = 0 THEN 1 ELSE 0 END) AS active_count,
-               SUM(CASE WHEN v.dismissed = 0 AND v.violation_type = 'DIRECT_ANSWER_REQUEST' THEN 1 ELSE 0 END) AS direct_answer_count,
-               SUM(CASE WHEN v.dismissed = 0 AND v.violation_type = 'IRRELEVANT_CONVERSATION' THEN 1 ELSE 0 END) AS irrelevant_count,
+        SELECT u.id AS user_id, u.username,
+               COALESCE(v.total_count, 0) AS total_count,
+               COALESCE(v.active_count, 0) AS active_count,
+               COALESCE(v.direct_answer_count, 0) AS direct_answer_count,
+               COALESCE(v.irrelevant_count, 0) AS irrelevant_count,
+               COALESCE(w.active_warning_count, 0) AS active_warning_count,
+               COALESCE(w.total_warning_count, 0) AS total_warning_count,
                COALESCE(s.force_shared, 0) AS force_shared,
-               MAX(v.created_at) AS last_violation_at
-        FROM llm_violations v
-        JOIN users u ON u.id = v.user_id
-        LEFT JOIN llm_user_settings s ON s.user_id = v.user_id
-        GROUP BY v.user_id
-        ORDER BY active_count DESC, last_violation_at DESC
+               v.last_violation_at,
+               w.last_warning_at
+        FROM users u
+        LEFT JOIN (
+            SELECT user_id,
+                   COUNT(*) AS total_count,
+                   SUM(CASE WHEN dismissed = 0 THEN 1 ELSE 0 END) AS active_count,
+                   SUM(CASE WHEN dismissed = 0 AND violation_type = 'DIRECT_ANSWER_REQUEST' THEN 1 ELSE 0 END) AS direct_answer_count,
+                   SUM(CASE WHEN dismissed = 0 AND violation_type = 'IRRELEVANT_CONVERSATION' THEN 1 ELSE 0 END) AS irrelevant_count,
+                   MAX(created_at) AS last_violation_at
+            FROM llm_violations GROUP BY user_id
+        ) v ON v.user_id = u.id
+        LEFT JOIN (
+            SELECT user_id,
+                   COUNT(*) AS total_warning_count,
+                   SUM(CASE WHEN dismissed = 0 THEN 1 ELSE 0 END) AS active_warning_count,
+                   MAX(created_at) AS last_warning_at
+            FROM llm_warnings GROUP BY user_id
+        ) w ON w.user_id = u.id
+        LEFT JOIN llm_user_settings s ON s.user_id = u.id
+        WHERE v.user_id IS NOT NULL OR w.user_id IS NOT NULL
+        ORDER BY active_count DESC, active_warning_count DESC,
+                 COALESCE(v.last_violation_at, w.last_warning_at) DESC
     `).all();
 
     const details = db.prepare(`
@@ -242,7 +266,48 @@ adminLlmRouter.get('/violations', adminOnly, (req, res) => {
         LIMIT 200
     `).all();
 
-    return res.json({ users, violations: details });
+    const warnings = db.prepare(`
+        SELECT w.id, w.user_id, u.username, w.conversation_id, w.violation_type, w.reason,
+               w.dismissed, w.dismissed_reason, w.dismissed_at, w.created_at
+        FROM llm_warnings w
+        JOIN users u ON u.id = w.user_id
+        ORDER BY w.created_at DESC
+        LIMIT 200
+    `).all();
+
+    return res.json({ users, violations: details, warnings });
+});
+
+// 誤って出された警告を取り消す。
+// 有効な警告が0件に戻れば、その利用者は次に違反しても「警告のみ」から始まる。
+adminLlmRouter.post('/warnings/:id/dismiss', adminOnly, (req, res) => {
+    const admin = checkUserStatus(req.session);
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+        return res.status(400).json({ error: '警告IDが不正です。' });
+    }
+
+    const reason = typeof req.body?.reason === 'string' ? req.body.reason : '';
+    const ok = store.dismissWarning(id, admin.user_id, reason);
+    if (!ok) {
+        return res.status(404).json({ error: '対象の警告が見つからないか、すでに取り消し済みです。' });
+    }
+    return res.status(200).end();
+});
+
+// 問い合わせを受けたときの一括リセット。
+// 「誤って警告された」という申し出に対して、その利用者の警告をまとめて取り消す。
+// 違反の記録には触らない（そちらは個別に判断して取り消す運用）。
+adminLlmRouter.post('/users/:id/warnings/dismiss-all', adminOnly, (req, res) => {
+    const admin = checkUserStatus(req.session);
+    const userId = Number(req.params.id);
+    if (!Number.isInteger(userId)) {
+        return res.status(400).json({ error: 'ユーザーIDが不正です。' });
+    }
+
+    const reason = typeof req.body?.reason === 'string' ? req.body.reason : '';
+    const dismissed = store.dismissAllWarnings(userId, admin.user_id, reason);
+    return res.json({ dismissed });
 });
 
 // 誤認だった違反を取り消す
@@ -363,6 +428,7 @@ adminLlmRouter.get('/conversations/:id', adminOnly, (req, res) => {
         conversation: conv,
         turns: store.loadTurns(id),
         toolCalls: store.listToolCalls(id),
+        warnings: store.listWarningsByConversation(id),
         violations: db.prepare(
             'SELECT * FROM llm_violations WHERE conversation_id = ? ORDER BY created_at'
         ).all(id),
