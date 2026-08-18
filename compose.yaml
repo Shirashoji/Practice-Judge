@@ -57,10 +57,34 @@ services:
       # http+localhostで動かすローカル構成では設定しない。
       # HTTPS付きの実デプロイ時は .env で NODE_ENV=production を設定すること。
       NODE_ENV: ${NODE_ENV:-}
+      # LLM学習支援機能。未設定でもAPIは起動し、LLM機能だけが無効になる。
+      LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      VERTEX_PROJECT_ID: ${VERTEX_PROJECT_ID:-}
+      VERTEX_REGION: ${VERTEX_REGION:-}
+      # Vertexをサービスアカウントで使う場合の鍵のパス。
+      # ./secrets を /app/secrets にマウントしているので、
+      # .env に書くのはコンテナ側のパス（例: /app/secrets/gcp-sa.json）。
+      # 未設定ならADCにフォールバックする。
+      GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      LOCAL_LLM_BASE_URL: ${LOCAL_LLM_BASE_URL:-}
+      LOCAL_LLM_API_KEY: ${LOCAL_LLM_API_KEY:-}
+      LOCAL_LLM_MODELS: ${LOCAL_LLM_MODELS:-}
+      LLM_MODEL_CHAT: ${LLM_MODEL_CHAT:-}
+      LLM_MODEL_CLASSIFY: ${LLM_MODEL_CLASSIFY:-}
+    # ホストで動くLM Studio等をコンテナから見るための名前。
+    # Docker Desktop（Mac/Windows）では自動で引けるが、Linuxでは明示が要る。
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - dbdata:/data
       - ./static:/app/static:ro
       - ./DB_BACKUP:/app/DB_BACKUP
+      # サービスアカウント鍵の置き場所。読み取り専用でよい。
+      - ./secrets:/app/secrets:ro
     depends_on:
       db-init:
         condition: service_completed_successfully

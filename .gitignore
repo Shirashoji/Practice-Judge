@@ -3,4 +3,8 @@
 /data.db-wal
 /.env
 .codex/
-secrets/
+# 鍵ファイルは追跡しないが、置き場所そのものはcloneに残す必要がある
+# （composeが ./secrets をマウントするので、ディレクトリが無いと起動できない）
+secrets/*
+!secrets/.gitkeep
+.claude/settings.json

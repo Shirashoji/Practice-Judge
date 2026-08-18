@@ -7,26 +7,34 @@ export function useColorMode () {
 }
 
 export function ColorModeProvider ({ children }) {
-    // 状態は undefined | light | dark
-    // を取るようにして、useEffectでlocalStorageにある値をセット
-    // この際、もしlocalStorageに値が無ければlightに設定
-    // 各コンポーネントではundefinedの間はモード切替をどちらにもセットしない。
+    // 初回はシステム設定に従い、ボタンで切り替えた後は明示的な選択を保存する。
+    // 旧キーは「未選択でもlightを書き込む」仕様だったため、明示設定とは区別する。
 
     const [colorMode, _setColorMode] = useState(undefined);
 
     const setColorMode = (mode) => {
         _setColorMode(mode);
-        window.localStorage.setItem("colormode", mode);
+        window.localStorage.setItem("colormode-override", mode);
     };
 
     useEffect(() => {
-        const storageVal = window.localStorage.getItem("colormode");
+        const media = window.matchMedia("(prefers-color-scheme: dark)");
+        const storageVal = window.localStorage.getItem("colormode-override");
+
+        // 自動的にlightが保存されていた旧設定は移行時に破棄する。
+        window.localStorage.removeItem("colormode");
+
         if (storageVal == "light" || storageVal == "dark") {
             _setColorMode(storageVal);
+            return;
         }
-        else {
-            setColorMode("light");
-        }
+
+        const applySystemMode = (event) => {
+            _setColorMode(event.matches ? "dark" : "light");
+        };
+        applySystemMode(media);
+        media.addEventListener("change", applySystemMode);
+        return () => media.removeEventListener("change", applySystemMode);
     }, []);
 
     return (

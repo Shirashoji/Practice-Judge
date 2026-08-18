@@ -106,3 +106,250 @@ static/以下が静的ファイルの配信。よってここは本番環境と�
     * ace-editor（front/app/ace-editor.tsx）
 4. 既存言語との兼ね合いで文字列変更した場合はdbの値を変える。
 5. イメージを再ビルドする。Compose利用時は`docker compose build judge-env-image`、ネイティブ利用時は`start-native.sh`実行時にイメージのビルドを選択する。（イメージが存在しない場合は自動ビルドが走る）
+
+
+## AI学習支援機能
+
+問題の解き方や不正解の原因について、アプリ内でLLMに相談できる機能。
+**答えそのものは教えない**ようにガードレールをかけ、会話は全てサーバ側に記録する。
+モデルはClaude（Anthropic API / Vertex AI）、Gemini（Vertex AI / Gemini API）、
+LM Studio等のローカルLLMから選べる。
+
+### 導線
+
+| 状況 | 場所 | Skill |
+|---|---|---|
+| まだ解けていない | 問題ページ「解き方のヒントをもらう」 | `pre_ac_advice` |
+| WA/TLE等になった | 提出詳細「どこが間違っているかヒントをもらう」 | `wa_diagnosis` |
+| ACした | 提出詳細「コードの改善点を提案してもらう」 | `post_ac_review` |
+
+いずれもまず一方向の説明が出て、その下の「チャットでさらに質問する」から
+問題文・提出・チャットを並べた専用画面に移る。1ターン目はそのまま履歴として引き継がれる。
+
+### セットアップ
+
+`.env` に使いたい経路の分だけ設定する（詳細は`.env.example`）。
+何も設定しなくてもAPIは起動し、LLMのエンドポイントだけが503を返す。
+
+```sh
+# Claude（Anthropic本家）
+LLM_PROVIDER=anthropic          # anthropic | vertex
+ANTHROPIC_API_KEY=sk-ant-...
+
+# Claude と Gemini を Vertex AI 経由で
+LLM_PROVIDER=vertex
+VERTEX_PROJECT_ID=my-gcp-project
+VERTEX_REGION=global
+GOOGLE_APPLICATION_CREDENTIALS=/app/secrets/gcp-sa.json  # 省略時はADC
+
+# Gemini だけを Gemini Developer API で（Vertexを使わない場合）
+GEMINI_API_KEY=...
+
+# OpenAI（OPENAI_BASE_URLを差し替えればAzure OpenAIやOpenRouterも指せる）
+OPENAI_API_KEY=sk-...
+
+# ローカルLLM（LM Studio等のOpenAI互換サーバ）
+LOCAL_LLM_BASE_URL=http://host.docker.internal:1234/v1
+LOCAL_LLM_MODELS=qwen/qwen3-coder-30b
+```
+
+`LLM_PROVIDER` が決めるのは**Claudeの経路だけ**で、他の経路には影響しない。
+Geminiは `VERTEX_PROJECT_ID` があればVertex経由、無ければ `GEMINI_API_KEY` で
+Gemini Developer API経由になる。4系統を同時に有効にして、ユーザーに選ばせることもできる。
+
+OpenAIとローカルLLMは同じOpenAI互換アダプタで喋る。差分はエンドポイント・認証と、
+GPT-5世代が `max_tokens` ではなく `max_completion_tokens` を要求する点だけ
+（ローカルサーバ側は逆に `max_completion_tokens` を知らない実装があるので使い分ける）。
+`reasoning_effort` は対応モデルにだけ送る。
+
+ローカルLLMのモデルは自動検出せず `LOCAL_LLM_MODELS` に列挙する。
+起動時にLM Studioが落ちていると選択肢が空のままAPIが立ち上がってしまうため。
+APIはコンテナの中で動くので、ホストのLM Studioを指すURLは `localhost` ではなく
+`host.docker.internal` になる（Linux向けに`compose.yaml`で`extra_hosts`を張ってある）。
+
+### Vertex AI（Gemini Enterprise Agent Platform）をサービスアカウントで使う
+
+Vertex AI経由のClaude・Geminiは、既定ではADC
+（`gcloud auth application-default login` やGCE/Cloud Runのメタデータサーバ）で認証する。
+開発者個人のログインに紐づかない資格情報で動かしたい場合は、
+サービスアカウントの鍵を置いて `GOOGLE_APPLICATION_CREDENTIALS` で指す。
+
+鍵の作成に必要なロールは **Vertex AI ユーザー**（`roles/aiplatform.user`）だけでよい。
+
+```sh
+PROJECT_ID=my-gcp-project
+SA=practice-judge-llm
+
+gcloud iam service-accounts create "$SA" --project "$PROJECT_ID"
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+    --member="serviceAccount:$SA@$PROJECT_ID.iam.gserviceaccount.com" \
+    --role=roles/aiplatform.user
+gcloud iam service-accounts keys create secrets/gcp-sa.json \
+    --iam-account="$SA@$PROJECT_ID.iam.gserviceaccount.com"
+```
+
+```sh
+# .env
+GOOGLE_APPLICATION_CREDENTIALS=/app/secrets/gcp-sa.json
+```
+
+鍵は `secrets/` に置く。中身は`.gitignore`してあり、`compose.yaml`が `./secrets` を
+コンテナの `/app/secrets` へ読み取り専用でマウントする。`.env`に書くのは
+**コンテナから見たパス**であってホストのパスではない
+（`start-native.sh`でDockerを使わずに動かす場合はホストの絶対パスを書く）。
+`.dockerignore`にも入れてあるので、鍵がイメージに焼き込まれることはない。
+
+変数名をGCP標準の `GOOGLE_APPLICATION_CREDENTIALS` のままにしてあるのは、
+これが`google-auth-library`自身が読む名前でもあるため。こちらの実装を通らない経路でも
+同じ鍵が効くので、資格情報の置き場所が1か所で済む。
+
+鍵を指定した場合は `VERTEX_PROJECT_ID` を省略できる（鍵の`project_id`が使われる）。
+省略可能にしてあるのは、`VERTEX_PROJECT_ID`の書き忘れでGeminiが黙って
+Gemini Developer API側の経路に落ちるのを防ぐため。
+
+鍵は**起動時に1度だけ読んで検証する**（存在・JSONとして妥当・`type`が`service_account`・
+`client_email`がある）。不備があってもAPIサーバは起動し、
+管理画面の稼働状況にその経路が「未設定」と理由付きで出る。
+`gcloud auth application-default login` が出力するユーザー資格情報のJSONを
+間違って置くのがありがちな失敗で、そのままSDKに渡すと原因の分かりにくい英語エラーになる。
+検証を通った場合は管理画面にサービスアカウントのアドレスが出るので、
+どの資格情報で動いているかを画面から確認できる（秘密鍵は読み捨てていて、ログにも画面にも出ない）。
+
+不備があるときにADCへ黙って落とさないのは、鍵を置いたつもりの環境が別の資格情報で
+動いてしまうと、権限や課金先がずれていても気づけないため。
+
+SDKはいずれも遅延`require`にしてあり、使わない経路の依存は未インストールでも起動できる
+（`@anthropic-ai/vertex-sdk` と `@google/genai` は `google-auth-library` 系を芋づるで引き込むため）。
+`google-auth-library`だけは`package.json`に直接の依存として書いてある。
+サービスアカウント鍵を`@anthropic-ai/vertex-sdk`に渡すには`GoogleAuth`を自前で組み立てる必要があり、
+他パッケージの推移的依存をそのまま`require`するのは壊れやすいため。
+ローカルLLMはSDKを使わずfetchで直接叩いているので依存が増えない。
+
+金額の上限やモデルの割り当ては**envではなくDBに置いてあり、管理画面から変更する**。
+`/control-panel/llm` 以下に、全体設定・ユーザー別上限・違反記録・会話の監査がある。
+経路が設定されていないモデルは、管理画面で許可してもユーザーの選択肢には出ない
+（許可設定はDB・経路の設定はenvにあり別々に変わるので、参照のたびに突き合わせている）。
+
+稼働状況の一覧には、ClaudeとGeminiについて**排他な経路の両方**を出し、
+実際に使う側を「使用中」、使わない側を「未使用（切り替え方）」と示す。
+使われない側を隠すと、設定してあるのに使われていないのか設定自体が効いていないのかを
+区別できず、特にVertexは経路を切り替えて実際に呼ぶまで鍵の正しさが分からなくなるため。
+
+ローカルLLMは**単価0**として扱う。電気代はAPI課金ではないので計上しようがなく、
+結果として月次上限を素通りするが、これは意図通り（ローカルなら使い放題でよい）。
+
+1ターンの出力上限もモデルごとに登録簿へ持たせている。思考する世代は思考トークンも
+この枠に入るので広く取る必要がある一方、**ローカルLLMは逆に狭くする必要がある**。
+コンテキスト長がモデルの上限ではなくロード時の設定で決まるためで、
+LM Studioの既定は8192、systemプロンプトとツール定義だけで2000トークン以上使う。
+`LLM_MAX_TOKENS` を設定すると全モデルでそちらが優先される。
+
+### 会話の共有と無料枠
+
+会話を管理者に見せてよいと同意したユーザーには広い枠を、見せたくないユーザーには狭い枠を割り当てる。
+**ログ自体はどちらの場合も完全に保存される**が、管理者が日常的に閲覧できるのは共有設定の会話だけ。
+
+既定値は設けず、初回利用時に必ず本人に選ばせる。UIだけの制御ではなく、
+共有設定が未設定のまま `/api/llm/advice` を叩くとサーバが409を返す。
+
+上限のモードは共有時と非共有時で独立しているので、
+「共有すれば無制限、共有しなければ月$1まで」という設定ができる。
+個人が無制限でも、システム全体の上限に達すれば全員止まる（最後の砦）。
+
+### ガードレール
+
+禁止するのは「AC前に直接的な解答を渡すこと」と「無関係な会話に応じること」の2点。
+**初回は警告のみ**で、警告を無視して繰り返した場合にだけ違反として記録される。
+
+段階的警告の状態はサーバが持つ（`llm_conversations.warning_count`）。
+モデルに回数を数えさせると取りこぼすので、毎ターンのシステムプロンプトに現在の警告回数を注入し、
+モデルは「0なら警告のみ / 1以上なら`report_violation`を呼ぶ」と判断するだけでよいようにしている。
+さらに`report_violation`ハンドラ側でも、警告0回の状態で通報が来たら記録せず警告に落とす。
+
+違反が記録されると、その会話と以降の会話が強制的に閲覧対象になる。
+**誤認だった場合は管理画面から違反を取り消せ**、取り消すと強制共有も解除できる。
+
+### ツールの認可
+
+LLMには6つのツール（AC状況の確認、提出の取得、解説の取得、問題の制約の取得、
+使用言語の割合の取得、違反の報告）を渡している。
+
+**モデルが渡してくる引数は「身元」として使わない。**
+ツールはセッション由来の`{userId, problemId, submissionId}`に束縛したクロージャとして生成し、
+モデル由来の引数は照合にのみ使う。`get_submission`に他人の提出IDを渡されても
+`WHERE id = ? AND user_id = <セッションのuser_id>`で引くのでヒットしない。
+`report_violation`はそもそもuser_id引数を受け取らない（なりすまし防止）。
+
+認可失敗は`tool_result`の`is_error`として返し、`llm_tool_calls.authz_ok = 0`で記録するので、
+越権試行が管理画面で見える。
+
+### 会話ログ
+
+`llm_turns.content_json`にMessages APIの`content`配列を逐語で保存している。
+1ターンに text と複数の tool_use が混在しても、そのまま復元してAPIに再送でき、
+フロントの再描画にも同じデータを使える。
+
+```js
+const rows = db.prepare('SELECT role, content_json FROM llm_turns WHERE conversation_id = ? ORDER BY seq').all(id);
+const messages = rows.map(r => ({ role: r.role, content: JSON.parse(r.content_json) }));
+```
+
+`llm_tool_calls`はこれの派生インデックス（管理画面での検索・監査用）で、真実の源はあくまで`content_json`。
+永続化はターン単位で行っているので、途中でブラウザを閉じてもログは失われない。
+
+ユーザーの発言はループに入る前に保存するが、**応答を1つも保存できずに終わった場合は取り消す**。
+残すとリトライのたびにuserターンが積み上がり、userロールが連続した履歴になる
+（OpenAI形式では不正になりうるし、送信のたびにプロンプトが無駄に膨らむ）。
+1ターン目で失敗して会話が空になった場合は会話ごと消す。
+取り消したことは`rolled_back`イベントでフロントにも伝える。伝えないと、
+消えた会話のIDを握ったまま「チャットでさらに質問する」が押せてしまう。
+
+### プロバイダの抽象化
+
+`api/llm/providers/` に経路ごとのアダプタを置き、`api/llm/client.js` がモデルから選ぶ。
+プロバイダを全体で1つに固定していないのは、「Vertex経由のClaude ＋ Vertex経由のGemini ＋
+手元のLM Studio」のような混在構成を成立させるため。会話ごとに`llm_conversations.provider`へ記録する。
+
+アダプタは3つで4経路をまかなう。OpenAIとローカルLLMは同じ`openai_compat.js`が担当する
+（プロトコルが同一で、違うのはエンドポイントとパラメータ名だけなので分ける理由が無い）。
+
+**共通の面はAnthropicのMessages API形式に固定した**（`{content配列, stop_reason, usage}`）。
+中立的な独自の中間表現を作らなかったのは、会話ログがMessages APIの`content`配列そのもので、
+「保存したものをそのまま再送する」という一番効く性質を失いたくなかったから。
+Gemini・OpenAI互換の各アダプタが、自分の形との相互変換を内側に持つ。
+
+```
+system                 ⇄ systemInstruction        / {role:'system'}
+{role:'assistant'}     ⇄ {role:'model'}           / {role:'assistant'}
+{type:'tool_use'}      ⇄ functionCall             / tool_calls[]
+{type:'tool_result'}   ⇄ functionResponse         / {role:'tool'}
+tools[].input_schema   ⇄ parametersJsonSchema     / function.parameters
+```
+
+変換で気をつけた点:
+
+- Geminiの`promptTokenCount`とOpenAI互換の`prompt_tokens`は**キャッシュ分を含む**が、
+  Anthropicの`input_tokens`は含まない。`cost.js`はAnthropicの定義で計算するので、
+  アダプタ側で引いてから渡す（引かないとキャッシュ分を二重に計上する）
+- Geminiの並列function callingは`functionResponse`を**同じ順序で返す**ことで対応付ける仕様なので、
+  こちらで採番した`tool_use.id`は送り返さない（ログとUIの突き合わせにだけ使う）
+- OpenAI形式は1メッセージ1ツール結果なので、複数の`tool_result`を持つターンは分解する。
+  `tool`ロールは対応する`assistant`の直後に並ぶ必要がある
+- Anthropic固有の`thinking` / `output_config.effort`はAnthropicアダプタの中で足す。
+  呼び出し側で振り分けると、プロバイダが増えるたびに条件が増える
+
+### Chrome Built-in AI（Prompt API）を実装していない理由
+
+ブラウザ内蔵のPrompt APIは実装していない。`api/llm/client.js`に拡張点だけ残してある。
+
+理由は、この機能の設計が**ガードレール・ログ・ツール認可のすべてがサーバ経由である**ことに
+依存しているため。ブラウザ内で完結する経路を作ると、DevToolsからシステムプロンプトを差し替えるだけで
+「直接答えを教えて」が通り、警告も違反記録も残らない。
+しかもクライアント側のコードには整合性保証が無いので、**改竄したこと自体を検知できない**
+（改竄できる人は報告処理も一緒に消せる）。不正対策のための仕組みの隣に、その抜け穴を作ることになる。
+
+加えて、Prompt APIの実体はGemini Nanoであって「基本的にClaudeを使う」という方針とも合わず、
+Chrome 148以降のデスクトップ限定・空きストレージ22GB・GPU 4GB以上という要件のため
+初学者の環境では多くの場合そもそも利用できない。
+
+なお、Prompt APIにMCPクライアントは無い（`tools`オプションで呼べるのはページ内のJS関数だけ）。

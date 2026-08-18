@@ -10,5 +10,7 @@ data.db*
 api/sessions.db*
 api/.env
 api/uploads/tmp*
+# 鍵はイメージに焼き込まず、実行時にマウントする
+secrets
 compose.yaml
 compose.override.yaml
