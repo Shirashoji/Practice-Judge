@@ -105,6 +105,7 @@ export default function LlmChat({ loaderData }) {
   const abortRef = useRef<AbortController | null>(null);
   const location = useLocation();
   const openingStartedRef = useRef(false);
+  const mountedRef = useRef(true);
 
   // 新しい発言が増えたら一番下へ
   useEffect(() => {
@@ -114,7 +115,24 @@ export default function LlmChat({ loaderData }) {
     }
   }, [turns, liveText]);
 
-  useEffect(() => () => abortRef.current?.abort(), []);
+  // 画面を離れたら進行中のSSEを閉じる。
+  //
+  // ただし即座にabortしてはいけない。開発時のStrictModeは同じtickの中で
+  // 「マウント→cleanup→再マウント」を行うため、初回メッセージの送信が
+  // 始まった直後にここで切られてしまう。再マウント側は openingStartedRef が
+  // 立っているので送り直しもせず、結果としてAIが何も応答しなくなる。
+  // 本当にアンマウントされたかどうかは次のタスクまで待てば区別できる。
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      setTimeout(() => {
+        if (!mountedRef.current) {
+          abortRef.current?.abort();
+        }
+      }, 0);
+    };
+  }, []);
 
   async function send(rawMessage: string, onAccepted?: () => void) {
     const message = rawMessage.trim();
