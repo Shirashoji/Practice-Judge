@@ -206,7 +206,7 @@ export default function LlmChat({ loaderData }) {
             );
           } else if (ev.type === "warning") {
             setNotice(
-              "ガイドラインに関する警告が出されました。次に同じ要求をすると管理者に報告されます。",
+              "ガイドラインに関する警告が出されました。この警告は他のチャットにも引き継がれ、次に同じ要求をすると管理者に報告されます。心当たりがない場合は管理者にお問い合わせください。",
             );
           } else if (ev.type === "violation") {
             setNotice(
