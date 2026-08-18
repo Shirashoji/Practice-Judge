@@ -1,5 +1,7 @@
 @import "@picocss/pico/css/pico.slate.css";
 @import "@picocss/pico/css/pico.colors.css";
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 html {
     --header-bg: var(--pico-color-sand-100);
@@ -469,4 +471,129 @@ button.searchbtn {
 .llm-pane-body table {
     max-width: 100%;
     overflow-x: auto;
+}
+
+/* LLM専用ワークスペース。既存ページのPicoテーマから視覚的に独立させる。 */
+.llm-workspace {
+    color-scheme: light;
+    --llm-user-bg: rgb(238 242 255);
+    --llm-user-border: rgb(199 210 254);
+    --llm-assistant-bg: rgb(255 255 255 / 0.9);
+    --llm-assistant-border: rgb(226 232 240);
+    --llm-pane-border: rgb(226 232 240);
+    --llm-tool-bg: rgb(248 250 252);
+}
+
+.dark .llm-workspace {
+    color-scheme: dark;
+    --llm-user-bg: rgb(67 56 202 / 0.3);
+    --llm-user-border: rgb(129 140 248 / 0.38);
+    --llm-assistant-bg: rgb(15 23 42 / 0.94);
+    --llm-assistant-border: rgb(71 85 105 / 0.72);
+    --llm-pane-border: rgb(71 85 105 / 0.6);
+    --llm-tool-bg: rgb(15 23 42 / 0.96);
+}
+
+.llm-workspace :where(button, textarea) {
+    font-family: inherit;
+}
+
+.llm-workspace .llm-turn {
+    width: min(92%, 48rem);
+    margin: 0 0 1rem;
+    border-radius: 1rem;
+    color: rgb(51 65 85);
+    box-shadow: 0 12px 30px rgb(0 0 0 / 0.12);
+}
+
+.llm-workspace .llm-turn-user {
+    width: min(82%, 40rem);
+    color: rgb(49 46 129);
+}
+
+.llm-workspace .llm-turn-role {
+    color: rgb(79 70 229);
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.llm-workspace .llm-turn-user .llm-turn-role {
+    color: rgb(67 56 202);
+}
+
+.llm-workspace .llm-markdown {
+    color: inherit;
+    font-size: 0.925rem;
+    line-height: 1.75;
+}
+
+.llm-workspace .llm-markdown :where(p, li, blockquote, td, th, code) {
+    color: inherit;
+}
+
+.llm-workspace .llm-markdown :where(h1, h2, h3, h4, h5, h6, strong) {
+    color: rgb(15 23 42);
+}
+
+.llm-workspace .llm-markdown a {
+    color: rgb(79 70 229);
+}
+
+.llm-workspace .llm-generation-progress {
+    border-color: rgb(129 140 248 / 0.2);
+    background: rgb(79 70 229 / 0.08);
+}
+
+.llm-workspace .llm-note {
+    color: rgb(100 116 139);
+}
+
+.dark .llm-workspace .llm-turn {
+    color: rgb(226 232 240);
+}
+
+.dark .llm-workspace .llm-turn-user {
+    color: rgb(238 242 255);
+}
+
+.dark .llm-workspace .llm-turn-role,
+.dark .llm-workspace .llm-turn-user .llm-turn-role {
+    color: rgb(199 210 254);
+}
+
+.dark .llm-workspace .llm-markdown :where(h1, h2, h3, h4, h5, h6, strong) {
+    color: rgb(255 255 255);
+}
+
+.dark .llm-workspace .llm-markdown a {
+    color: rgb(196 181 253);
+}
+
+.llm-context-content :where(h1, h2, h3, h4, h5, h6) {
+    color: rgb(15 23 42);
+}
+
+.llm-context-content :where(pre, table) {
+    color: rgb(51 65 85);
+}
+
+.dark .llm-context-content :where(h1, h2, h3, h4, h5, h6) {
+    color: rgb(248 250 252);
+}
+
+.dark .llm-context-content :where(pre, table) {
+    color: rgb(226 232 240);
+}
+
+.llm-workspace ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.llm-workspace ::-webkit-scrollbar-thumb {
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background: rgb(100 116 139 / 0.55);
+    background-clip: padding-box;
 }

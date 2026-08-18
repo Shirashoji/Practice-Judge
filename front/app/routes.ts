@@ -28,11 +28,6 @@ export default [
         route("/problemsets/", "routes/problemsets.tsx"),
         route("/problemsets/no/:problemsetId", "routes/problemset_page.tsx"),
 
-        // ↓AI学習支援のチャット専用画面
-        layout("routes/login_layout.tsx", { id: "llm_login_guard" }, [
-            route("/llm/chat/:conversationId", "routes/llm_chat.tsx"),
-        ]),
-
         // ↓プライバシーポリシー
         route("/privacy-policy", "routes/privacy_policy.tsx"),
 
@@ -67,5 +62,9 @@ export default [
             route("/control-panel/llm/conversations", "routes/control_panel_llm_conversations.tsx"),
             route("/control-panel/llm/conversations/:conversationId", "routes/control_panel_llm_conversation.tsx"),
         ]),
+    ]),
+    // AI学習支援は通常サイトとは独立したワークスペースとして表示する。
+    layout("routes/llm_layout.tsx", [
+        route("/llm/chat/:conversationId", "routes/llm_chat.tsx"),
     ]),
 ];

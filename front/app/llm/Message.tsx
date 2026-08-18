@@ -163,8 +163,8 @@ export function Turn ({ role, content, toolResults }: any) {
 
     return (
         <div className={isUser ? 'llm-turn llm-turn-user' : 'llm-turn llm-turn-assistant'}>
-            <div className="llm-turn-role">{isUser ? 'あなた' : 'AI'}</div>
-            <div>
+            <div className="llm-turn-role">{isUser ? 'You' : 'AI Tutor'}</div>
+            <div className="min-w-0">
                 {texts.map((b, i) => <MessageText key={i} text={b.text} />)}
                 {toolUses.map((b) => (
                     <ToolCall
