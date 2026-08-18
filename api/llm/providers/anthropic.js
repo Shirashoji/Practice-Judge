@@ -54,6 +54,23 @@ function createRawClient (provider) {
     return new Anthropic({ apiKey: config.ANTHROPIC_API_KEY });
 }
 
+// systemを「不変部分 + 可変部分」の2ブロックに分け、不変側の末尾にキャッシュの
+// ブレークポイントを置く。キャッシュ対象になるのは tools → system と並ぶ前置きなので、
+// ここに置くとツール定義・ガードレール・問題文までがまとめて再利用される。
+// 可変部分（現在の状況）は毎ターン変わるため、ブレークポイントより後ろに残す。
+//
+// 前置きが短くてキャッシュの下限トークン数に届かない場合、cache_controlは無視される
+// だけでエラーにはならないので、長さによる分岐はしない。
+function buildSystem (params) {
+    if (typeof params.systemStable !== 'string' || params.systemStable === '') {
+        return params.system;
+    }
+    return [
+        { type: 'text', text: params.systemStable, cache_control: { type: 'ephemeral' } },
+        { type: 'text', text: params.systemVariable ?? '' },
+    ];
+}
+
 function create (provider) {
     const raw = createRawClient(provider);
 
@@ -64,7 +81,7 @@ function create (provider) {
                 const body = {
                     model: params.model,
                     max_tokens: params.max_tokens,
-                    system: params.system,
+                    system: buildSystem(params),
                     tools: params.tools,
                     messages: params.messages,
                 };

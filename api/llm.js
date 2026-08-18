@@ -19,6 +19,9 @@ module.exports = { llmRouter };
 // ツールを何周まで回すか。無限ループとコスト暴走の保険。
 const MAX_ITERATIONS = 8;
 
+// ツール実行の途中で応答が終わったときに、会話の最後に残す文言。
+const INTERRUPTED_TEXT = '（応答が最後まで生成されませんでした。もう一度質問してください。）';
+
 // ------------------------------------------------------------
 // SSE
 //
@@ -117,7 +120,9 @@ function buildSituation (conv) {
         submissionStatus,
         hasAC,
         submissionCount,
-        warningCount: conv.warning_count,
+        // 警告はユーザー単位。会話単位だと、警告されたチャットを開き直すだけで初回に戻せてしまう。
+        warningCount: store.activeWarningCount(conv.user_id),
+        violationCount: store.activeViolationCount(conv.user_id),
     };
 }
 
@@ -156,8 +161,25 @@ function buildProblemContext (problem) {
 async function runToolLoop (req, res, emit, conv, session, pendingUserTurnId) {
     // 応答を1つでも保存できたか。取り消してよいかの判断はこれだけで足りる。
     let persistedAssistant = false;
+    // 直前に積んだtool_resultに対する応答がまだ返っていないか。
+    // 中断や周回上限でここがtrueのまま終わると、会話の最後がuserターンで終わってしまう。
+    let awaitingToolResponse = false;
 
     const finish = (stopReason) => {
+        // userターン（tool_result）で終わった会話をそのまま残すと、次の送信で
+        // userターンが連続し、履歴としても「ツールを呼んだきり黙った」状態になる。
+        // 中断された旨のassistantターンで閉じて、続きから会話できるようにする。
+        if (awaitingToolResponse) {
+            store.appendTurn({
+                conversationId: conv.id,
+                role: 'assistant',
+                content: [{ type: 'text', text: INTERRUPTED_TEXT }],
+                stopReason,
+                model: conv.model,
+                provider: conv.provider,
+            });
+            awaitingToolResponse = false;
+        }
         if (!persistedAssistant && pendingUserTurnId != null) {
             const removedConversation = store.rollbackUserTurn(conv.id, pendingUserTurnId);
             emit('rolled_back', { conversationId: conv.id, conversationRemoved: removedConversation });
@@ -178,15 +200,16 @@ async function runToolLoop (req, res, emit, conv, session, pendingUserTurnId) {
         return;
     }
 
-    const situation = buildSituation(conv);
-    const skill = skills.getSkill(conv.skill_id, situation);
     const problem = visibleProblem(conv.problem_id, session);
     if (problem == null) {
         emit('error', { code: 'PROBLEM_UNAVAILABLE', message: '対象の問題を参照できません。' });
         finish('error');
         return;
     }
-    const system = `${skill.system}\n\n---\n\n${buildProblemContext(problem)}`;
+    // 問題文は会話の中で変わらないので、毎ターン変わりうる「現在の状況」より前に置く。
+    // 逆順にすると、警告回数や提出回数が動いた時点で問題文以降のキャッシュが無効になる。
+    const situation = buildSituation(conv);
+    const skill = skills.getSkill(conv.skill_id, situation, [buildProblemContext(problem)]);
 
     const toolCtx = {
         userId: conv.user_id,
@@ -196,9 +219,18 @@ async function runToolLoop (req, res, emit, conv, session, pendingUserTurnId) {
         conversationId: conv.id,
         isAdmin: isAdmin(session),
     };
+    // 1回の応答の中で report_violation が複数回呼ばれても、警告は1段階しか進めない。
+    // 進めてしまうと 0→1（警告）と 1→2（記録）が同じターンで起き、
+    // 一度も警告されないまま違反として記録されることになる。
+    let reportResult = null;
     const hooks = {
-        onReportViolation: (type, reason) =>
-            guard.handleReportViolation(conv.id, conv.user_id, type, reason, emit),
+        onReportViolation: (type, reason) => {
+            if (reportResult != null) {
+                return { ...reportResult, note: 'この応答ではすでに報告処理が済んでいます。重ねて呼ぶ必要はありません。' };
+            }
+            reportResult = guard.handleReportViolation(conv.id, conv.user_id, type, reason, emit);
+            return reportResult;
+        },
     };
     const { impl } = toolkit.createToolset(toolCtx, hooks);
 
@@ -240,7 +272,11 @@ async function runToolLoop (req, res, emit, conv, session, pendingUserTurnId) {
             model: conv.model,
             // 適正値はモデルごとに違う（思考する世代は枠が要る、ローカルはコンテキストに縛られる）
             max_tokens: config.getMaxTokens(conv.model),
-            system,
+            system: skill.system,
+            // プロンプトキャッシュを張れるプロバイダ向けに、不変部分と可変部分の境目も渡す。
+            // systemStable + systemVariable === system なので、使わないアダプタはsystemだけ見ればよい。
+            systemStable: skill.systemStable,
+            systemVariable: skill.systemVariable,
             tools: skill.tools,
             messages,
             effort: config.EFFORT,
@@ -299,6 +335,7 @@ async function runToolLoop (req, res, emit, conv, session, pendingUserTurnId) {
             ...usage,
         });
         persistedAssistant = true;
+        awaitingToolResponse = false;
 
         const after = cost.checkBudget(conv.user_id, shareMode);
         emit('usage', {
@@ -387,6 +424,7 @@ async function runToolLoop (req, res, emit, conv, session, pendingUserTurnId) {
 
         store.appendTurn({ conversationId: conv.id, role: 'user', content: toolResults });
         messages.push({ role: 'user', content: toolResults });
+        awaitingToolResponse = true;
 
         if (aborted) {
             // 保存は済んでいるので、ここで安全に降りられる
@@ -609,7 +647,7 @@ llmRouter.post('/conversations/:id/messages', loginOnly, async (req, res) => {
     const emit = openStream(res);
     emit('meta', { conversationId: conv.id, skillId: conv.skill_id, model: conv.model });
 
-    // warning_countが増えている可能性があるので読み直す
+    // forced_sharedなどが前のターンで変わっている可能性があるので読み直す
     await runToolLoop(req, res, emit, store.getConversation(conv.id), req.session, userTurnId);
 });
 

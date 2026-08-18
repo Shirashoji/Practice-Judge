@@ -1,8 +1,8 @@
 // Skill（状況別のシステムプロンプトとツールのセット）
 //
 // コンテキスト長を節約し精度を上げるため、3つのSkillのうち状況に合う1つだけを載せる。
-// 構成は「共通ガードレール（不変） + Skill固有の指示（不変） + 現在の状況（可変）」の3層。
-// 対象の問題文は、このsystem promptの後ろにllm.jsが必ず追加する。
+// 構成は「共通ガードレール（不変） + Skill固有の指示（不変） + 参照情報（不変） + 現在の状況（可変）」。
+// 対象の問題文は参照情報として llm.js が contextBlocks で渡す。
 // 可変部分を末尾に置いているのはプロンプトキャッシュのためで、
 // 先頭の不変部分が毎ターン再利用されるようにしている。
 
@@ -141,21 +141,34 @@ function skillForSubmission (status) {
     return 'wa_diagnosis';
 }
 
-// returns: { system, tools }
-// system は「共通ルール + Skill固有 + 現在の状況」の順に連結する。
-function getSkill (skillId, situation) {
+const SEPARATOR = '\n\n---\n\n';
+
+// returns: { system, systemStable, systemVariable, tools }
+// system は「共通ルール + Skill固有 + 参照情報 + 現在の状況」の順に連結したもの。
+// contextBlocks は問題文のように会話の中で変わらない参照情報で、可変の「現在の状況」より
+// 前に置く。プロンプトキャッシュを張れるプロバイダのために、その境目も一緒に返す。
+//
+// systemStable は区切り文字まで含むので systemStable + systemVariable === system が成り立つ。
+// アダプタはこの2つを別ブロックとして送れば、不変側だけをキャッシュ対象にできる。
+function getSkill (skillId, situation, contextBlocks = []) {
     const skill = SKILLS[skillId];
     if (skill == null) {
         throw new Error(`未知のskill_id: ${skillId}`);
     }
 
-    const system = [
+    const systemStable = [
         guard.COMMON_RULES,
         skill.instructions,
-        guard.situationBlock(situation),
-    ].join('\n\n---\n\n');
+        ...contextBlocks,
+    ].join(SEPARATOR) + SEPARATOR;
+    const systemVariable = guard.situationBlock(situation);
 
-    return { system, tools: tools.toolsForSkill(skillId) };
+    return {
+        system: systemStable + systemVariable,
+        systemStable,
+        systemVariable,
+        tools: tools.toolsForSkill(skillId),
+    };
 }
 
 function listSkills () {
