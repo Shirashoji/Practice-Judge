@@ -20,7 +20,7 @@ const { db } = require('../db.js');
 const DEFINITIONS = {
     check_ac_status: {
         name: 'check_ac_status',
-        description: '対象ユーザーがこの問題をAC（正解）済みかどうかを確認する。ヒントをどこまで出してよいかを判断するために、解法に踏み込む前に必ず確認すること。',
+        description: '対象ユーザーがこの問題をAC（正解）済みかどうかを確認する。AC状況と提出回数はsystem promptの「現在の状況」に毎回書かれているので、通常は呼ぶ必要がない。会話の途中で新しく提出・ACされた可能性があるなど、最新の状態を確かめたいときだけ使う。',
         input_schema: {
             type: 'object',
             properties: {
@@ -63,7 +63,7 @@ const DEFINITIONS = {
 
     get_problem_constraints: {
         name: 'get_problem_constraints',
-        description: 'この問題の問題文・制約（実行時間制限、メモリ制限、難易度）を取得する。計算量の見積もりや入力形式の確認に使う。',
+        description: 'この問題の問題文・制約（実行時間制限、メモリ制限、難易度）を取得する。同じ内容がsystem promptの「対象問題」に毎回含まれているので、通常は呼ぶ必要がない。長い問題文を正確に読み直したいときだけ使う。',
         input_schema: { type: 'object', properties: {}, required: [] },
     },
 
@@ -75,7 +75,7 @@ const DEFINITIONS = {
 
     report_violation: {
         name: 'report_violation',
-        description: '警告済みのユーザーが、警告を無視して再び不正な要求をしてきた場合にシステムへ通知する。初回の要求では呼ばず、警告のみに留めること。',
+        description: 'ガイドラインに反する要求（直接の解答の要求、競技プログラミングや当該問題と無関係な会話の継続）を受けたときに毎回呼ぶ。初回か再犯かはサーバが判定するので自分で数えなくてよい。戻り値の action が warning_only なら未記録の警告、reported なら管理者へ報告済みで、それに沿った内容を利用者に伝えること。初回だからと呼ばずに済ませると警告が記録されず、次回も初回扱いになる。',
         input_schema: {
             type: 'object',
             properties: {

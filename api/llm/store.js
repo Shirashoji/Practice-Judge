@@ -115,6 +115,14 @@ function addConversationCost (id, costUsd) {
     `).run(costUsd, id);
 }
 
+// 違反が記録された会話を強制共有にする。
+// 管理画面の閲覧条件は llm_conversations の share_mode / forced_shared で判定するので、
+// llm_user_settings.force_shared を立てるだけでは「以降の会話」しか見えるようにならない。
+// 違反が起きた当の会話が読めないと監査にならないため、その行も併せて立てる。
+function setConversationForcedShared (id) {
+    db.prepare('UPDATE llm_conversations SET forced_shared = 1 WHERE id = ?').run(id);
+}
+
 function incrementWarning (id) {
     db.prepare('UPDATE llm_conversations SET warning_count = warning_count + 1 WHERE id = ?').run(id);
 }
@@ -256,6 +264,54 @@ function listToolCalls (conversationId) {
 }
 
 // ------------------------------------------------------------
+// 警告
+//
+// 警告はユーザー単位で数える。会話単位にすると、警告されたチャットを閉じて
+// 開き直すだけで初回に戻せてしまい、段階的警告が意味を持たなくなる。
+// ------------------------------------------------------------
+
+function recordWarning (data) {
+    const info = db.prepare(`
+        INSERT INTO llm_warnings (user_id, conversation_id, violation_type, reason)
+        VALUES (?, ?, ?, ?)
+    `).run(data.userId, data.conversationId ?? null, data.violationType, data.reason ?? '');
+    return info.lastInsertRowid;
+}
+
+// 取り消されていない警告の件数。これが0なら次の違反は「警告のみ」から始まる。
+function activeWarningCount (userId) {
+    return db.prepare(
+        'SELECT COUNT(*) as c FROM llm_warnings WHERE user_id = ? AND dismissed = 0'
+    ).get(userId).c;
+}
+
+function dismissWarning (warningId, adminUserId, reason) {
+    const info = db.prepare(`
+        UPDATE llm_warnings
+        SET dismissed = 1, dismissed_by = ?, dismissed_at = CURRENT_TIMESTAMP, dismissed_reason = ?
+        WHERE id = ? AND dismissed = 0
+    `).run(adminUserId, reason ?? '', warningId);
+    return info.changes > 0;
+}
+
+// 問い合わせを受けて、そのユーザーの警告をまとめて取り消す。
+// returns: 取り消した件数
+function dismissAllWarnings (userId, adminUserId, reason) {
+    const info = db.prepare(`
+        UPDATE llm_warnings
+        SET dismissed = 1, dismissed_by = ?, dismissed_at = CURRENT_TIMESTAMP, dismissed_reason = ?
+        WHERE user_id = ? AND dismissed = 0
+    `).run(adminUserId, reason ?? '', userId);
+    return info.changes;
+}
+
+function listWarningsByConversation (conversationId) {
+    return db.prepare(
+        'SELECT * FROM llm_warnings WHERE conversation_id = ? ORDER BY created_at'
+    ).all(conversationId);
+}
+
+// ------------------------------------------------------------
 // 違反
 // ------------------------------------------------------------
 
@@ -293,6 +349,7 @@ module.exports = {
     listConversationsByUser,
     touchConversation,
     addConversationCost,
+    setConversationForcedShared,
     incrementWarning,
     appendTurn,
     rollbackUserTurn,
@@ -300,6 +357,11 @@ module.exports = {
     loadTurns,
     recordToolCall,
     listToolCalls,
+    recordWarning,
+    activeWarningCount,
+    dismissWarning,
+    dismissAllWarnings,
+    listWarningsByConversation,
     recordViolation,
     activeViolationCount,
     dismissViolation,

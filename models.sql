@@ -137,7 +137,7 @@ CREATE TABLE IF NOT EXISTS llm_conversations (
     model TEXT NOT NULL DEFAULT '',             -- 会話中は固定（途中で変えるとプロンプトキャッシュが壊れる）
     share_mode TEXT NOT NULL DEFAULT 'private', -- 作成時点のユーザー設定のスナップショット
     forced_shared INTEGER NOT NULL DEFAULT 0,   -- 違反による強制共有
-    warning_count INTEGER NOT NULL DEFAULT 0,   -- 段階的警告の状態（サーバが持つ）
+    warning_count INTEGER NOT NULL DEFAULT 0,   -- この会話でガードレールが作動した回数（監査表示用。段階判定はllm_warnings）
     total_cost_usd REAL NOT NULL DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -191,6 +191,26 @@ CREATE TABLE IF NOT EXISTS llm_tool_calls (
 
 CREATE INDEX IF NOT EXISTS idx_llm_tool_calls_conversation ON llm_tool_calls(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_llm_tool_calls_authz ON llm_tool_calls(authz_ok);
+
+-- ============================================================
+-- llm_warnings テーブル
+-- 段階的警告の1回分。ユーザー単位で数えるので、会話を新しく開いてもリセットされない。
+-- 誤警告だった場合はdismissedで取り消す（取り消すと次はまた警告のみから始まる）。
+-- ============================================================
+CREATE TABLE IF NOT EXISTS llm_warnings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    conversation_id INTEGER,
+    violation_type TEXT NOT NULL,               -- DIRECT_ANSWER_REQUEST | IRRELEVANT_CONVERSATION
+    reason TEXT NOT NULL DEFAULT '',
+    dismissed INTEGER NOT NULL DEFAULT 0,       -- 1 = 誤警告として取り消し済み
+    dismissed_by INTEGER,
+    dismissed_at DATETIME,
+    dismissed_reason TEXT NOT NULL DEFAULT '',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_llm_warnings_user ON llm_warnings(user_id, dismissed);
 
 -- ============================================================
 -- llm_violations テーブル

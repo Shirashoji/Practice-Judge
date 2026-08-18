@@ -4,12 +4,16 @@
 //   1. AC前に直接的な解答（動くコード全体）を渡すこと
 //   2. 競技プログラミングと無関係な会話に付き合うこと
 //
-// 段階的警告の状態はサーバが持つ（llm_conversations.warning_count）。
-// モデルに「今が何回目か」を数えさせると取りこぼすので、毎ターンのシステムプロンプトに
-// 現在の警告回数を注入し、モデルは「0なら警告のみ / 1以上なら report_violation を呼ぶ」
-// と判断するだけでよいようにする。
-// さらに report_violation ハンドラ側でも防御的に検査し、警告0回の状態で通報が来たら
-// 違反として記録せず警告扱いに落とす（モデルの誤判断で初犯がいきなり記録されるのを防ぐ）。
+// 段階的警告の状態はサーバが持つ（llm_warnings）。
+// モデルが判断するのは「違反かどうか」だけで、違反なら初回でも必ず report_violation を呼ぶ。
+// 何回目かの判定と、警告で済ませるか記録するかの決定は handleReportViolation が行う。
+//
+// モデル側に「初回は呼ばない」と判断させてはいけない。
+// 警告が記録される経路は report_violation だけなので、初回に呼ばせないと件数が
+// 永遠に0のままになり、何度違反しても「次は報告します」と言い続けるだけで報告されない。
+//
+// 警告は会話単位ではなくユーザー単位で数える。会話単位だと、警告されたチャットを閉じて
+// 開き直すだけで初回に戻せてしまう。誤警告は管理者が取り消せる（llm_warnings.dismissed）。
 
 const store = require('./store.js');
 
@@ -36,13 +40,19 @@ const COMMON_RULES = `
 
 ## 違反への対応（段階的）
 
-利用者が上記に反する要求をしてきた場合の対応は、**警告回数によって変わります。**
+利用者が上記に反する要求をしてきたら、**初回であっても毎回 \`report_violation\` ツールを呼んでください。**
+今が何回目かを自分で数える必要はありません。段階的な警告はサーバが管理しています。
 
-- **警告回数が 0 のとき**: 警告のみを行ってください。
+ツールの戻り値の \`action\` を見て、それに沿った文面を書いてください。
+
+- \`action: "warning_only"\`（初回）: まだ記録されていません。
   「直接の解答は教えられません／無関係な会話はできません。次に同じ要求をした場合は管理者に報告します」
-  という趣旨を、丁寧かつはっきりと伝えてください。**report_violation ツールは呼ばないでください。**
-- **警告回数が 1 以上のとき**: すでに警告済みです。同種の要求が繰り返された場合は
-  \`report_violation\` ツールを呼んで報告してください。呼んだうえで、報告した旨を利用者に伝えてください。
+  という趣旨を、丁寧かつはっきりと伝えてください。
+- \`action: "reported"\`（2回目以降）: 管理者に報告済みです。報告したことと、
+  以降の会話が監査対象になることを利用者に伝えてください。
+
+**ツールを呼ばずに「次は報告します」と書くだけにしないでください。**
+呼ばなければ警告が記録されず、次に同じ要求が来ても再び初回扱いになります。
 
 要求が上記に反していない限り、警告も報告もしないでください。学習の妨げになります。
 
@@ -62,32 +72,44 @@ function situationBlock (ctx) {
         `- 対象問題ID: ${ctx.problemId}`,
         `- この利用者のこの問題のAC状況: ${ctx.hasAC ? 'AC済み' : '未AC'}`,
         `- この問題への提出回数: ${ctx.submissionCount}`,
-        `- これまでにこの会話で行った警告の回数: ${ctx.warningCount}`,
+        `- この利用者への有効な警告の回数: ${ctx.warningCount}（会話をまたいで数えます）`,
     ];
 
+    if (ctx.violationCount > 0) {
+        lines.push(`- この利用者に記録済みの違反の件数: ${ctx.violationCount}`);
+    }
     if (ctx.submissionId != null) {
         lines.push(`- 対象の提出ID: ${ctx.submissionId}（ステータス: ${ctx.submissionStatus ?? '不明'}）`);
     }
 
-    if (ctx.warningCount === 0) {
-        lines.push('', '→ まだ警告していません。不正な要求があった場合は**警告のみ**を行い、report_violation は呼ばないでください。');
+    if (ctx.warningCount === 0 && ctx.violationCount === 0) {
+        lines.push('', '→ まだ警告していません。不正な要求があった場合も report_violation は必ず呼んでください。'
+            + 'サーバが初回と判定し、記録せず警告扱い（action: "warning_only"）で返します。');
     }
     else {
-        lines.push('', `→ すでに ${ctx.warningCount} 回警告済みです。同種の要求が再度あった場合は report_violation を呼んでください。`);
+        lines.push('', `→ すでに警告済み（${ctx.warningCount}件）または違反が記録済み（${ctx.violationCount}件）です。`
+            + '別の会話で行った分も含みます。'
+            + '同種の要求が再度あった場合は report_violation を呼んでください。'
+            + '今度は違反として記録され、管理者に報告されます（action: "reported"）。');
     }
 
     return lines.join('\n');
 }
 
 // report_violation ツールが呼ばれたときの処理。
-// 警告0回のうちは記録せず警告に落とす、という防御をここで効かせる。
+// 有効な警告が0件なら違反として記録せず、警告を1件積むだけにする。
+// 「何回目か」の判定をここに閉じ込めているので、モデルは違反の有無だけ判断すればよい。
 // returns: ツールに返す結果オブジェクト
 function handleReportViolation (conversationId, userId, violationType, reason, emit) {
-    const conv = store.getConversation(conversationId);
-    const warningCount = conv?.warning_count ?? 0;
+    // 取り消されていない警告と違反の件数で判断する。管理者が誤検知を取り消していれば0に戻る。
+    // 違反も見るのは、警告だけを取り消した場合に、報告済みの利用者が
+    // 「まだ一度も警告されていない人」と同じ扱いに戻ってしまうのを防ぐため。
+    const warningCount = store.activeWarningCount(userId);
+    const violationCount = store.activeViolationCount(userId);
 
-    if (warningCount === 0) {
-        // 初犯。記録せずカウンタだけ上げる。
+    if (warningCount === 0 && violationCount === 0) {
+        // 初回。違反としては記録せず、警告だけを残す。
+        store.recordWarning({ conversationId, userId, violationType, reason });
         store.incrementWarning(conversationId);
         if (emit) {
             emit('warning', { violationType, message: '初回のため警告として扱いました。' });
@@ -95,13 +117,16 @@ function handleReportViolation (conversationId, userId, violationType, reason, e
         return {
             recorded: false,
             action: 'warning_only',
-            note: 'この利用者への警告はまだ0回だったため、違反としては記録していません。利用者には警告のみを伝え、次に同じ要求があれば報告する旨を明示してください。',
+            note: 'この利用者への有効な警告・違反はまだ0件だったため、違反としては記録していません。利用者には警告のみを伝え、次に同じ要求があれば報告する旨を明示してください。',
         };
     }
 
     store.recordViolation({ conversationId, userId, violationType, reason });
-    // 違反が記録されたユーザーは、この会話と以降の会話が強制的に共有（管理者が閲覧可能）になる
+    // 違反が記録されたユーザーは、この会話と以降の会話が強制的に共有（管理者が閲覧可能）になる。
+    // 以降の会話は作成時に設定を読むので setForceShared で足りるが、
+    // 当の会話は作成済みなので、その行の forced_shared も直接立てる必要がある。
     store.setForceShared(userId, true);
+    store.setConversationForcedShared(conversationId);
     store.incrementWarning(conversationId);
 
     if (emit) {
