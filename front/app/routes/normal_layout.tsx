@@ -11,6 +11,11 @@ export async function clientLoader () {
     return await res.json();
 }
 
+export function shouldRevalidate() {
+    return true;
+}
+
+
 export default function Outer ({ loaderData }) {
     const loginInfo = loaderData;
 
@@ -91,7 +96,7 @@ function TitleMenu ({ loginInfo }) {
                 <li>
                     <details className="dropdown" style={{ "display": "inline-block" }} ref={userDropdownRef}>
                         <summary role="button" className="secondary">{loginInfo.username}</summary>
-                        <ul>
+                        <ul style={{ left: "auto", right: 0 }}>
                             <li>
                                 <Link
                                     to={`/users/${loginInfo.username}`}
