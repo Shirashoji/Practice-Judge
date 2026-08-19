@@ -23,16 +23,22 @@ docker compose build judge && docker compose up -d judge   # ジャッジの変�
 ./scripts/clean-sandboxes.sh       # 孤児サンドボックスの掃除
 
 cd api && npm test                 # node --test
-cd front && npm run typecheck      # 既存エラーあり（下記参照）
+cd front && npm run typecheck      # 0件で通る。通してから出す（下記参照）
 ```
 
 CI は無いので、変更したパーツに対応する上記を手元で流す。
 
-**`npm run typecheck` は現状パスしない。** テンプレート由来の `tsconfig.json` が
-`strict: true` なのに対してコード側に型注釈が無く、369件のエラーが出る
-（暗黙のanyが252件、`useOutletContext()` を型引数無しで呼んだことによる
-`type 'never'` が57件）。**変更前から出ている**ので、通す対象ではなく
-「自分の変更でエラーが増えていないか」の比較にだけ使う。
+**`npm run typecheck` は0件で通る。** `tsconfig.json` は `strict: true` のままなので、
+新しいコードにも型注釈が要る。増やしたエラーは自分のものなので、出したら直す。
+
+ルートを足したら **`import type { Route } from "./+types/<ファイル名>"`** を書き、
+`meta` / `clientLoader` / `ErrorBoundary` / デフォルトエクスポートの引数を
+`Route.MetaArgs` / `Route.ClientLoaderArgs` / `Route.ErrorBoundaryProps` / `Route.ComponentProps`
+で受ける。この型は `react-router typegen` が `.react-router/types/` に生成する（typecheckが先に走らせる）。
+routes.ts に登録していないファイルには生成されない。
+
+API応答の型は、対応する SELECT をコメントで示したうえで、それを使う画面に書く。
+複数の画面が同じ行を描くものだけ [front/app/types.ts](front/app/types.ts) に置いてある。
 
 ## 構成
 
