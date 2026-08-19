@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useOutletContext } from "react-router";
+import type { AppOutletContext } from '../types';
 import { BASEURL } from "../backend_url";
 import { AceEditorReadOnly } from "../ace_editor.tsx";
 import { toJST } from '../utils';
@@ -57,7 +58,7 @@ export default function Page({ loaderData, params }) {
     const [expandCode, setExpandCode] = useState(false);
     const [showAdvice, setShowAdvice] = useState(false);
     const problemId = params.problemId;
-    const { loginInfo } = useOutletContext();
+    const { loginInfo } = useOutletContext<AppOutletContext>();
 
     useEffect(() => {
         let ignore = false;

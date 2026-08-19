@@ -1,9 +1,10 @@
 import { Link, Outlet, useOutletContext, useNavigate } from 'react-router';
+import type { AppOutletContext } from '../types';
 import { useState } from 'react';
 import { BASEURL } from '../backend_url';
 
 export default function ProblemSetPageLayout ({ params }) {
-    const ctx = useOutletContext();
+    const ctx = useOutletContext<AppOutletContext>();
     const problemsetId = params.problemsetId;
     const { loginInfo } = ctx;
 

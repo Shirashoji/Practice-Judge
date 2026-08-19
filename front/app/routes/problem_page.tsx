@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link, useOutletContext } from "react-router";
+import type { AppOutletContext } from '../types';
 import "katex/dist/katex.min.css";
 import { BASEURL } from '../backend_url';
 import parse from 'html-react-parser';
@@ -51,7 +52,7 @@ export default function Page({ params, loaderData }) {
     const [showAdvice, setShowAdvice] = useState(false);
     const navigate = useNavigate();
     const problem = loaderData;
-    const { loginInfo } = useOutletContext();
+    const { loginInfo } = useOutletContext<AppOutletContext>();
 
     async function handleSubmit(e) {
         e.preventDefault();

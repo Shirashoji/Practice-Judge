@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link, useOutletContext } from "react-router";
+import type { AppOutletContext } from '../types';
 import { BASEURL } from '../backend_url';
 import { toJST } from '../utils';
 
@@ -71,7 +72,7 @@ function ResetButton ({ userId, role }) {
     const [error, setError] = useState("");
     const [message, setMessage] = useState("");
 
-    const { loginInfo } = useOutletContext();
+    const { loginInfo } = useOutletContext<AppOutletContext>();
 
     const reset = async (userId) => {
         if (!window.confirm(`ユーザーID ${userId}のパスワードをリセットします。よろしいですか？`)) {

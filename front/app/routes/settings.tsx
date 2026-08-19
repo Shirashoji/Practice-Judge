@@ -1,6 +1,7 @@
 import { BASEURL } from '../backend_url';
 import { useState, useEffect } from 'react';
 import { Link, useOutletContext, useNavigate } from 'react-router';
+import type { AppOutletContext } from '../types';
 import { isValidUsername, isValidPassword } from '../utils';
 import { fetchSettings, updateSettings } from '../llm/client';
 
@@ -219,7 +220,7 @@ function LlmSettings () {
 }
 
 function ChangeUsername () {
-    const { loginInfo } = useOutletContext();
+    const { loginInfo } = useOutletContext<AppOutletContext>();
 
     const [newUsername, setNewUsername] = useState("");
     const [password, setPassword] = useState("");
