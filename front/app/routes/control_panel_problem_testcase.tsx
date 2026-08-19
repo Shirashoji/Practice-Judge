@@ -1,7 +1,11 @@
 import type { Route } from "./+types/control_panel_problem_testcase";
 import { useState, useEffect, useRef } from 'react';
+import type { Dispatch, SetStateAction } from 'react';
 import { useNavigate, Link } from 'react-router';
 import { BASEURL } from '../backend_url';
+
+// GET /api/problems/no/:id/testcase の1行（api/problem.js のSELECTと対応）
+type TestcaseSummary = { id: number; testcase_name: string };
 
 export function meta ({ params, data }: Route.MetaArgs) {
     return [
@@ -13,7 +17,7 @@ export async function clientLoader ({ request, params }: Route.ClientLoaderArgs)
     const re = await fetch(new URL(`/api/problems/no/${params.problemId}/testcase`, BASEURL).href, {
         credentials: "include",
     });
-    const res = await re.json();
+    const res: TestcaseSummary[] = await re.json();
     return res;
 }
 
@@ -22,7 +26,7 @@ export default function ControlPanelTestcase ({ loaderData, params }: Route.Comp
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [testcases, setTestcases] = useState(loaderData);
-    const [focusing, setFocusing] = useState(null);
+    const [focusing, setFocusing] = useState<number | null>(null);
     const [testcaseName, setTestcaseName] = useState("");
     const [inputSubmission, setInputSubmission] = useState("");
     const [inputJudge, setInputJudge] = useState("");
@@ -108,7 +112,7 @@ export default function ControlPanelTestcase ({ loaderData, params }: Route.Comp
         setTestcases(data);
     };
 
-    const changeFocusing = async (nextId) => {
+    const changeFocusing = async (nextId: number) => {
         setLoading(true);
         await saveChange();
 
@@ -218,6 +222,16 @@ function EditorLeft ({
     focusing, setFocusing,
     changeFocusing,
     refetchTestcase,
+    }: {
+    problemId: string | undefined;
+    saveChange: () => Promise<void>;
+    saving: boolean;
+    testcases: TestcaseSummary[];
+    setTestcases: Dispatch<SetStateAction<TestcaseSummary[]>>;
+    focusing: number | null;
+    setFocusing: Dispatch<SetStateAction<number | null>>;
+    changeFocusing: (nextId: number) => Promise<void>;
+    refetchTestcase: () => Promise<void>;
     }) {
 
     // アニメーション用
@@ -319,6 +333,12 @@ function Testcases ({
     changeFocusing,
     testcases, setTestcases,
     focusing, setFocusing,
+}: {
+    changeFocusing: (nextId: number) => Promise<void>;
+    testcases: TestcaseSummary[];
+    setTestcases: Dispatch<SetStateAction<TestcaseSummary[]>>;
+    focusing: number | null;
+    setFocusing: Dispatch<SetStateAction<number | null>>;
 }) {
     if (testcases.length == 0) {
         return (
@@ -367,6 +387,18 @@ function EditorRight ({
     testcaseName, setTestcaseName,
     inputSubmission, setInputSubmission,
     inputJudge, setInputJudge,
+    }: {
+    problemId: string | undefined;
+    focusing: number | null;
+    setFocusing: Dispatch<SetStateAction<number | null>>;
+    loading: boolean;
+    refetchTestcase: () => Promise<void>;
+    testcaseName: string;
+    setTestcaseName: Dispatch<SetStateAction<string>>;
+    inputSubmission: string;
+    setInputSubmission: Dispatch<SetStateAction<string>>;
+    inputJudge: string;
+    setInputJudge: Dispatch<SetStateAction<string>>;
     }) {
 
     // アニメーション用

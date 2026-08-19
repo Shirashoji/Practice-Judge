@@ -5,6 +5,15 @@ import type { AppOutletContext } from '../types';
 import { BASEURL } from '../backend_url';
 import { toJST } from '../utils';
 
+// GET /api/users の1行（api/users.js のSELECTと対応）。is_active は 0 / 1。
+type AdminUser = {
+    id: number;
+    username: string;
+    role: string;
+    is_active: number;
+    created_at: string;
+};
+
 export function meta({}: Route.MetaArgs) {
   return [
     { title: "ユーザー一覧 - Practice Judge" },
@@ -15,7 +24,7 @@ export async function clientLoader ({ request }: Route.ClientLoaderArgs) {
     const fp = await fetch(new URL("/api/users", BASEURL).href, {
         credentials: "include",
     });
-    return await fp.json();
+    return await fp.json() as AdminUser[];
 }
 
 export default function AllUsers ({ loaderData }: Route.ComponentProps) {
@@ -46,7 +55,7 @@ export default function AllUsers ({ loaderData }: Route.ComponentProps) {
                         </tr>
                     </thead>
                     <tbody>
-                        {users.map((user) => {
+                        {users.map((user: AdminUser) => {
                             return (
                                 <tr key={user.id}>
                                     <td>{user.id}</td>
@@ -68,14 +77,14 @@ export default function AllUsers ({ loaderData }: Route.ComponentProps) {
     );
 }
 
-function ResetButton ({ userId, role }) {
+function ResetButton ({ userId, role }: { userId: number; role: string }) {
     const [resetting, setResetting] = useState(false);
     const [error, setError] = useState("");
     const [message, setMessage] = useState("");
 
     const { loginInfo } = useOutletContext<AppOutletContext>();
 
-    const reset = async (userId) => {
+    const reset = async (userId: number) => {
         if (!window.confirm(`ユーザーID ${userId}のパスワードをリセットします。よろしいですか？`)) {
             return;
         }

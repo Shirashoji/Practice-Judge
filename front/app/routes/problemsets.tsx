@@ -2,6 +2,10 @@ import type { Route } from "./+types/problemsets";
 import { useState, useEffect } from "react";
 import { Link } from "react-router";
 import { BASEURL } from '../backend_url';
+import type { ProblemSetListItem } from '../types';
+
+// GET /api/problemsets/registered-problems の1行
+type RegisteredProblem = { problemset_id: number; problem_id: number };
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -32,7 +36,12 @@ export async function clientLoader () {
         submitted[v.id] = true;
     }
 
-    return { problemsets: ret[0], solved, submitted, registeredProblems: ret[2] };
+    return {
+        problemsets: ret[0] as ProblemSetListItem[],
+        solved,
+        submitted,
+        registeredProblems: ret[2] as RegisteredProblem[],
+    };
 }
 
 export default function Problemsets ({ loaderData }: Route.ComponentProps) {
@@ -42,7 +51,7 @@ export default function Problemsets ({ loaderData }: Route.ComponentProps) {
     // submitted: { submitted_id1: true, submitted_id2_id2: true, ... }
     // registeredProblems: [{ problemset_id, problem_id }]
 
-    function calcColor (setid) {
+    function calcColor (setid: number) {
         const problemCount = registeredProblems.reduce((acc, p) => acc + (p.problemset_id == setid ? 1 : 0), 0);
         const solvedCount = registeredProblems.reduce((acc, p) => acc + (p.problemset_id == setid && solved[p.problem_id] != null ? 1 : 0), 0);
 

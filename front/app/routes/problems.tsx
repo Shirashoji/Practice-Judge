@@ -1,5 +1,7 @@
 import type { Route } from "./+types/problems";
 import { useState, useEffect } from "react";
+import type { ChangeEvent, ReactNode } from "react";
+import type { ProblemListItem } from '../types';
 import { Link } from "react-router";
 import { BASEURL } from '../backend_url';
 
@@ -36,7 +38,7 @@ export async function clientLoader () {
         submitted[v.id] = true;
     }
 
-    return { problems: ret[0], rate, solved, submitted };
+    return { problems: ret[0] as ProblemListItem[], rate, solved, submitted };
 }
 
 export default function Problems ({ loaderData }: Route.ComponentProps) {
@@ -45,7 +47,7 @@ export default function Problems ({ loaderData }: Route.ComponentProps) {
     // solved: { solved_id1: true, solved_id2: true, ... }
     // submitted: { submitted_id1: true, submitted_id2_id2: true, ... }
 
-    function calcColor (problem) {
+    function calcColor (problem: ProblemListItem) {
         if (solved[problem.id] != null) {
             return "var(--solved-bg)";
         }
@@ -59,14 +61,14 @@ export default function Problems ({ loaderData }: Route.ComponentProps) {
     const [order, setOrder] = useState(0);
 
     const funs = [
-        (a, b) => {
+        (a: ProblemListItem, b: ProblemListItem) => {
             return b.id - a.id;
         },
-        (a, b) => {
+        (a: ProblemListItem, b: ProblemListItem) => {
             const v = b.difficulty - a.difficulty;
             return v == 0 ? b.id - a.id : v;
         },
-        (a, b) => {
+        (a: ProblemListItem, b: ProblemListItem) => {
             const v = a.difficulty - b.difficulty;
             return v == 0 ? b.id - a.id : v;
         },
@@ -128,7 +130,7 @@ export default function Problems ({ loaderData }: Route.ComponentProps) {
     );
 }
 
-function ToggleSwitch ({ children, state, setter }) {
+function ToggleSwitch ({ children, state, setter }: { children: ReactNode; state: boolean; setter: (v: boolean) => void }) {
     return (
         <label>
             <input
@@ -141,8 +143,8 @@ function ToggleSwitch ({ children, state, setter }) {
     );
 }
 
-function AscRadioButton ({ state, setter }) {
-    const f = (e) => {
+function AscRadioButton ({ state, setter }: { state: number; setter: (v: number) => void }) {
+    const f = (e: ChangeEvent<HTMLInputElement>) => {
         const v = e.target.value;
         setter(Number(v));
     };

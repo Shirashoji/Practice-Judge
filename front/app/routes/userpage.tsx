@@ -3,6 +3,7 @@ import { BASEURL } from '../backend_url';
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router';
 import { toJST } from '../utils';
+import type { SubmissionListItem } from '../types';
 
 export function meta({ data }: Route.MetaArgs) {
     const uname = data?.userInfo?.username ?? "ユーザーが見つかりません";
@@ -45,27 +46,11 @@ export function ErrorBoundary ({ error }: Route.ErrorBoundaryProps) {
     );
 }
 
-// GET /api/users/:username/recent-submissions の1行。
-// ジャッジ中は time_sec / memory_kb がまだ埋まっていない。
-type RecentSubmission = {
-    id: number;
-    problem_id: number;
-    problem_title: string;
-    difficulty: number;
-    username: string;
-    code_language: string;
-    status: string;
-    time_sec: number | null;
-    memory_kb: number | null;
-    created_at: string;
-    bytes: number;
-};
-
 export default function UserPage ({ loaderData }: Route.ComponentProps) {
     const { userInfo, solvedInfo } = loaderData;
     const [submissionPage, setSubmissionPage] = useState(0);
     const [totalSubmissions, setTotalSubmissions] = useState(0);
-    const [currentSubmissions, setCurrentSubmissions] = useState<RecentSubmission[]>([]);
+    const [currentSubmissions, setCurrentSubmissions] = useState<(SubmissionListItem & { problem_id: number })[]>([]);
 
     const statusColorClass: Record<string, string | undefined> = {
         AC : "pico-color-green-200",
@@ -187,7 +172,7 @@ export default function UserPage ({ loaderData }: Route.ComponentProps) {
     );
 }
 
-function Card ({ name, value }) {
+function Card ({ name, value }: { name: string; value: number }) {
     return (
         <article style={{ display: "flex", justifyContent: "center", alignItems: "center", flexDirection: "column" }}>
             <div style={{ fontSize: "1.5em" }}>{value}</div>

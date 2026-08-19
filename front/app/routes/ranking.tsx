@@ -1,5 +1,6 @@
 import type { Route } from "./+types/ranking";
 import { useState } from "react";
+import type { ChangeEvent, ReactNode } from "react";
 import { Link } from "react-router";
 import { BASEURL } from '../backend_url';
 
@@ -19,9 +20,18 @@ export async function clientLoader() {
         throw new Error("ランキングデータの取得に失敗しました");
     }
     
-    const users = await res.json();
+    const users: RankingUser[] = await res.json();
     return { users };
 }
+
+// GET /api/ranking の1行（api/ranking.js の SELECT と対応）。
+type RankingUser = {
+    user_id: number;
+    username: string;
+    role: string;
+    stars: number;
+    solved: number;
+};
 
 export default function UsersRanking({ loaderData }: Route.ComponentProps) {
     const { users } = loaderData;
@@ -33,13 +43,13 @@ export default function UsersRanking({ loaderData }: Route.ComponentProps) {
     // ソート用関数
     const sortFunctions = [
         // 0: 解決数順（同数の場合はスター数 > ID順）
-        (a, b) => {
+        (a: RankingUser, b: RankingUser) => {
             if (b.solved !== a.solved) return b.solved - a.solved;
             if (b.stars !== a.stars) return b.stars - a.stars;
             return a.user_id - b.user_id;
         },
         // 1: スター数順（同数の場合は解決数 > ID順）
-        (a, b) => {
+        (a: RankingUser, b: RankingUser) => {
             if (b.stars !== a.stars) return b.stars - a.stars;
             if (b.solved !== a.solved) return b.solved - a.solved;
             return a.user_id - b.user_id;
@@ -48,7 +58,7 @@ export default function UsersRanking({ loaderData }: Route.ComponentProps) {
 
     // フィルタリングとソートを適用
     const displayUsers = users
-        .filter(u => !hideAdmin || (u.role !== "admin" && u.role !== "inthebloom"))
+        .filter((u: RankingUser) => !hideAdmin || (u.role !== "admin" && u.role !== "inthebloom"))
         .sort(sortFunctions[order]);
 
     return (
@@ -117,7 +127,7 @@ export default function UsersRanking({ loaderData }: Route.ComponentProps) {
 // UI部品
 // ------------------------------------
 
-function ToggleSwitch({ children, state, setter }) {
+function ToggleSwitch({ children, state, setter }: { children: ReactNode; state: boolean; setter: (v: boolean) => void }) {
     return (
         <label>
             <input
@@ -130,8 +140,8 @@ function ToggleSwitch({ children, state, setter }) {
     );
 }
 
-function OrderRadioButton({ state, setter }) {
-    const handleChange = (e) => {
+function OrderRadioButton({ state, setter }: { state: number; setter: (v: number) => void }) {
+    const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
         setter(Number(e.target.value));
     };
     return (

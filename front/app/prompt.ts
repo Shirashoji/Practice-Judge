@@ -1,4 +1,4 @@
-function createPrompt(htmlString) {
+function createPrompt(htmlString: string) {
     return `【設定】
 あなたはプログラミング初学者の学習をサポートする、技術に精通したAI講師です。
 私はオンラインジャッジ「Practice Judge」の問題に取り組んでいる初学者です。私が自力で正解にたどり着けるよう、サポートしてください。

@@ -1,8 +1,8 @@
-import type { Route } from "./+types/control_panel_llm_conversation";
 // 会話1件の監査ビュー。
 // ユーザーの発言とAIの応答だけでなく、実行されたツール・引数・結果まで全部見せる。
 // 「AIが何を根拠にそう答えたか」まで追えないと、不適切な応答の原因が特定できないため。
 
+import type { Route } from "./+types/control_panel_llm_conversation";
 import { Link } from 'react-router';
 import { BASEURL } from '../backend_url';
 import { toJST } from '../utils';
@@ -12,6 +12,38 @@ export function meta ({ data }: Route.MetaArgs) {
     return [{ title: `AI会話 #${data?.conversation?.id ?? ''} - Practice Judge` }];
 }
 
+// GET /api/admin/llm/conversations/:id の応答（api/admin_llm.js と対応）。
+// dismissed / is_error / authz_ok は 0 / 1。
+// conversation と turns は会話ログそのもの（Messages APIのcontent配列）なので、
+// 表示側で形を仮定せずそのまま流す。
+type ConversationDetail = {
+    conversation: any;
+    turns: any[];
+    toolCalls: {
+        id: number;
+        turn_id: number;
+        tool_use_id: string;
+        tool_name: string;
+        input_json: string;
+        result_json: string | null;
+        is_error: number;
+        authz_ok: number;
+        created_at: string;
+    }[];
+    warnings: ConversationViolation[];
+    violations: ConversationViolation[];
+};
+
+// 警告と違反は同じ形で記録している。
+type ConversationViolation = {
+    id: number;
+    violation_type: string;
+    reason: string | null;
+    dismissed: number;
+    dismissed_reason: string | null;
+    created_at: string;
+};
+
 export async function clientLoader ({ params }: Route.ClientLoaderArgs) {
     const res = await fetch(
         new URL(`/api/admin/llm/conversations/${params.conversationId}`, BASEURL).href,
@@ -20,7 +52,8 @@ export async function clientLoader ({ params }: Route.ClientLoaderArgs) {
     if (!res.ok) {
         throw new Error('会話が見つからないか、閲覧が許可されていません。');
     }
-    return await res.json();
+    const data: ConversationDetail = await res.json();
+    return data;
 }
 
 export function ErrorBoundary ({ error }: Route.ErrorBoundaryProps) {

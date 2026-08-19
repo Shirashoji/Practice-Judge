@@ -258,7 +258,11 @@ export default function Page({ loaderData, params }: Route.ComponentProps) {
   );
 }
 
-function CodeCopyButton ({ children, onClick }) {
+// Picoのツールチップは data-tooltip 属性で出す。標準の属性ではないので、
+// ボタンのpropsに足せるよう型を広げておく。
+type TooltipButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & { "data-tooltip"?: string };
+
+function CodeCopyButton ({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
     const [copiedCode, setCopiedCode] = useState(false);
     // useEffectはcopiedCodeの変化で発火し、trueへの変化ならwaitしてfalseにセットする。
     useEffect(() => {
@@ -270,7 +274,7 @@ function CodeCopyButton ({ children, onClick }) {
         return () => clearTimeout(id);
     }, [copiedCode]);
 
-    const props = {
+    const props: TooltipButtonProps = {
         className: "button-small-padding",
         onClick: () => {
             onClick();

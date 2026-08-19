@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router";
 import { useState, useEffect, useRef } from "react";
 import { BASEURL } from "../backend_url";
 import { toJST } from '../utils';
+import type { SubmissionListItem } from '../types';
 
 export async function clientLoader ({ request, params }: Route.ClientLoaderArgs) {
     const url = new URL(request.url);
@@ -38,7 +39,7 @@ export async function clientLoader ({ request, params }: Route.ClientLoaderArgs)
         throw new Error("アクセスに失敗しました（サーバーエラー）");
     }
 
-    const data = await res.json();
+    const data: { submissions: SubmissionListItem[]; total: number } = await res.json();
     const datap = await resp.json();
     return { ...data, title: datap.title, page: Number(page), username, status, language, problemId: params.problemId };
 }
@@ -273,7 +274,15 @@ export default function Page ({ loaderData }: Route.ComponentProps) {
     );
 }
 
-function Pagination ({ problemId, username, status, language, page, total, totalPages }) {
+function Pagination ({ problemId, username, status, language, page, total, totalPages }: {
+    problemId: string;
+    username: string;
+    status: string;
+    language: string;
+    page: number;
+    total: number;
+    totalPages: number;
+}) {
     const prev = 0 < page ? (
         <Link
             to={`/problems/no/${problemId}/submissions?page=${page - 1}${

@@ -8,10 +8,14 @@
 // コピー対象がずれる。ここではコンテナのrefにスコープして探すようにしている。
 
 import { useState, useEffect, useRef } from 'react';
-import parse from 'html-react-parser';
+import parse, { Element as HtmlElement } from 'html-react-parser';
 import renderMathInElement from '../auto-render';
 
-function SampleCopyButton ({ children, onClick, className }) {
+function SampleCopyButton ({ children, onClick, className }: {
+    children: React.ReactNode;
+    onClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
+    className: string;
+}) {
     const [copied, setCopied] = useState(false);
 
     useEffect(() => {
@@ -22,7 +26,8 @@ function SampleCopyButton ({ children, onClick, className }) {
         return () => clearTimeout(id);
     }, [copied]);
 
-    const props: any = {
+    // Picoのツールチップは data-tooltip 属性で出す。標準の属性ではない。
+    const props: React.ButtonHTMLAttributes<HTMLButtonElement> & { 'data-tooltip'?: string } = {
         onClick: (e) => {
             onClick(e);
             setCopied(true);
@@ -41,14 +46,14 @@ export function Statement ({ html }: { html: string }) {
     const containerRef = useRef<HTMLDivElement>(null);
 
     // サンプルのコピー。コンテナ内だけを探すので、同じ画面に問題文が複数あっても混ざらない。
-    async function handleSampleCopy (e) {
+    async function handleSampleCopy (e: React.MouseEvent<HTMLButtonElement>) {
         const root = containerRef.current;
         if (root == null) {
             return;
         }
         const pres = root.querySelectorAll('pre.sample');
         for (const pre of pres) {
-            if (e.target.compareDocumentPosition(pre) & Node.DOCUMENT_POSITION_FOLLOWING) {
+            if (e.currentTarget.compareDocumentPosition(pre) & Node.DOCUMENT_POSITION_FOLLOWING) {
                 await navigator.clipboard.writeText((pre as HTMLElement).innerText);
                 break;
             }
@@ -74,8 +79,9 @@ export function Statement ({ html }: { html: string }) {
         renderMathInElement(dom.body);
 
         return parse(dom.body.innerHTML, {
-            replace (domNode: any) {
-                if (domNode.attribs?.class?.includes('sample-copy')) {
+            replace (domNode) {
+                // テキストノードやコメントにはattribsが無いので、タグに絞ってから見る。
+                if (domNode instanceof HtmlElement && domNode.attribs?.class?.includes('sample-copy')) {
                     return (
                         <SampleCopyButton
                             className={domNode.attribs.class}

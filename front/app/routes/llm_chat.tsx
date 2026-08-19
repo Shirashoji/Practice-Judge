@@ -1,15 +1,16 @@
-import type { Route } from "./+types/llm_chat";
 // チャット専用画面。
 //
 // 問題文・該当の提出（コードと実行結果）・チャットを同時に見られるようにする。
 // 一方向説明から遷移してきたときは、その1ターン目が履歴としてそのまま引き継がれる。
 
+import type { Route } from "./+types/llm_chat";
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "react-router";
 import "katex/dist/katex.min.css";
 import { BASEURL } from "../backend_url";
 import { AceEditorReadOnly } from "../ace_editor";
 import { toJST } from "../utils";
+import type { SubmissionTestcaseResult } from "../types";
 import { Statement } from "../llm/Statement";
 import { Conversation, MessageText } from "../llm/Message";
 import { sendMessage } from "../llm/client";
@@ -47,7 +48,18 @@ export async function clientLoader({ params }: Route.ClientLoaderArgs) {
   if (!convRes.ok) {
     throw new Error("会話が見つかりません。");
   }
-  const data = await convRes.json();
+  // turns はMessages APIのcontent配列そのままなので、形を仮定せず流す。
+  const data: {
+    conversation: {
+      id: number;
+      problem_id: number;
+      problem_title: string;
+      submission_id: number | null;
+      skill_id: string;
+      model: string;
+    };
+    turns: any[];
+  } = await convRes.json();
 
   // 問題文（未公開問題は管理者のみ見られる）
   const probRes = await fetch(
@@ -59,7 +71,7 @@ export async function clientLoader({ params }: Route.ClientLoaderArgs) {
   const problem = probRes.ok ? await probRes.json() : null;
 
   // 対象の提出（あれば）
-  let submission = null;
+  let submission: { whole: any; each: SubmissionTestcaseResult[] } | null = null;
   if (data.conversation.submission_id != null) {
     const subRes = await fetch(
       new URL(
@@ -248,7 +260,8 @@ export default function LlmChat({ loaderData }: Route.ComponentProps) {
     }
   }
 
-  function submit(e) {
+  // formのsubmitからも、テキストエリアのCtrl+Enterからも呼ばれる。
+  function submit(e: React.SyntheticEvent) {
     e.preventDefault();
     void send(input);
   }

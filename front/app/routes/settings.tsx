@@ -74,7 +74,7 @@ function LlmSettings () {
 
     useEffect(() => { reload(); }, []);
 
-    async function save (patch) {
+    async function save (patch: { shareMode?: string; preferredModel?: string }) {
         setSaving(true);
         setMsg("");
         try {
@@ -229,7 +229,7 @@ function ChangeUsername () {
     const [loading, setLoading] = useState(false);
     const [msg, setMsg] = useState("");
 
-    const handler = async (e) => {
+    const handler = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         setLoading(true);
 
@@ -314,7 +314,7 @@ function ChangePassword () {
     const [loading, setLoading] = useState(false);
     const [msg, setMsg] = useState("");
 
-    const handler = async (e) => {
+    const handler = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         setLoading(true);
 

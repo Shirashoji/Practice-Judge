@@ -2,6 +2,7 @@ import type { Route } from "./+types/control_panel_problemsets";
 import { useState } from "react";
 import { useNavigate, Link } from "react-router";
 import { BASEURL } from "../backend_url";
+import type { ProblemSetListItem } from '../types';
 
 export function meta({}: Route.MetaArgs) {
     return [
@@ -13,7 +14,7 @@ export async function clientLoader () {
     const res = await fetch(new URL("/api/problemsets/all", BASEURL).href, {
         credentials: "include",
     });
-    return await res.json();
+    return await res.json() as ProblemSetListItem[];
 }
 
 export default function ControlPanelProblemsets({ loaderData }: Route.ComponentProps) {

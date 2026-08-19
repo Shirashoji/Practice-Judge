@@ -2,6 +2,7 @@ import type { Route } from "./+types/normal_layout";
 import { Link, Outlet, useNavigate } from 'react-router';
 import { useState, useRef } from 'react';
 import { BASEURL } from '../backend_url';
+import type { LoginInfo } from '../types';
 
 import { useColorMode } from '../contexts';
 import type { ThemeMode } from '../contexts';
@@ -46,7 +47,7 @@ export default function Outer ({ loaderData }: Route.ComponentProps) {
     );
 }
 
-function TitleMenu ({ loginInfo }) {
+function TitleMenu ({ loginInfo }: { loginInfo: LoginInfo }) {
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const userDropdownRef = useRef<HTMLDetailsElement>(null);

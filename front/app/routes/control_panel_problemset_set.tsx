@@ -2,6 +2,10 @@ import type { Route } from "./+types/control_panel_problemset_set";
 import { useState } from "react";
 import { Link } from "react-router";
 import { BASEURL } from "../backend_url";
+import type { ProblemListItem } from '../types';
+
+// GET /api/problemsets/no/:id/all のセット内訳（api/problemset.js のSELECTと対応）
+type SetProblem = { id: number; title: string; sort_order: number };
 
 // --- Loader ---
 // GET /api/problemsets/no/:problemsetId/
@@ -19,9 +23,10 @@ export async function clientLoader ({ params }: Route.ClientLoaderArgs) {
     if (!res1.ok || !res2.ok) {
         throw new Error("Problemset not found");
     }
+    const problemsetDetail: { problemset: { id: number; title: string }; setProblems: SetProblem[] } = await res1.json();
     return {
-        problemsetDetail: await res1.json(),
-        problems: await res2.json(),
+        problemsetDetail,
+        problems: await res2.json() as ProblemListItem[],
     }
 }
 
@@ -35,25 +40,25 @@ export default function ControlPanelProblemsetSet({ loaderData, params }: Route.
     const { problemset, setProblems } = loaderData.problemsetDetail;
     const problems = loaderData.problems;
     const problemsDict: Record<number, any> = {};
-    problems.forEach(p => problemsDict[p.id] = p);
+    problems.forEach((p) => problemsDict[p.id] = p);
 
     // problemset: メタデータ
     // setProblems: [{ id, sort_order }]
     // problems: [{ id, title }]
 
-    const [list, setList] = useState(setProblems.map(p => p.id));
+    const [list, setList] = useState(setProblems.map((p) => p.id));
     // list: []
 
     const [saving, setSaving] = useState(false);
     const [msg, setMsg] = useState("");
 
-    const addItem = (p) => {
+    const addItem = (p: ProblemListItem) => {
         const next = list.concat();
         next.push(p.id);
         setList(next);
     };
 
-    const removeItem = (idx) => {
+    const removeItem = (idx: number) => {
         if (!window.confirm("削除しますか？")) {
             return;
         }
@@ -61,7 +66,7 @@ export default function ControlPanelProblemsetSet({ loaderData, params }: Route.
         setList(next);
     };
 
-    const swapup = (idx) => {
+    const swapup = (idx: number) => {
         const next = list.concat();
         const v = next[idx];
         next[idx] = next[idx - 1];
@@ -69,7 +74,7 @@ export default function ControlPanelProblemsetSet({ loaderData, params }: Route.
         setList(next);
     };
 
-    const swapdown = (idx) => {
+    const swapdown = (idx: number) => {
         const next = list.concat();
         const v = next[idx];
         next[idx] = next[idx + 1];

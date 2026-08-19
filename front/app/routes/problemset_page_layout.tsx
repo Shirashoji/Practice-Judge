@@ -3,7 +3,9 @@ import type { AppOutletContext } from '../types';
 import { useState } from 'react';
 import { BASEURL } from '../backend_url';
 
-export default function ProblemSetPageLayout ({ params }) {
+// routes.ts に登録されていないため React Router の生成型が無い。
+// 登録されるまではルートとして存在しないので、propsは手書きで受ける。
+export default function ProblemSetPageLayout ({ params }: { params: { problemsetId?: string } }) {
     const ctx = useOutletContext<AppOutletContext>();
     const problemsetId = params.problemsetId;
     const { loginInfo } = ctx;

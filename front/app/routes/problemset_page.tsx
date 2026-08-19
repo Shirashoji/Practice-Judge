@@ -4,6 +4,9 @@ import { useNavigate, Link, useOutletContext } from "react-router";
 import { BASEURL } from '../backend_url';
 import parse from 'html-react-parser';
 
+// GET /api/problemsets/no/:id が返すセットの中身（api/problemset.js のSELECTと対応）
+type SetProblem = { id: number; title: string; difficulty: number; sort_order: number };
+
 export function meta({ data }: Route.MetaArgs) {
     const id = data?.problemset?.id;
     const ptitle = data?.problemset?.title;
@@ -67,7 +70,7 @@ export async function clientLoader ({ params }: Route.ClientLoaderArgs) {
 
     return {
         problemset: jsons[0].problemset,
-        setProblems: jsons[0].setProblems,
+        setProblems: jsons[0].setProblems as SetProblem[],
         solved,
         submitted,
         rate,
@@ -77,7 +80,7 @@ export async function clientLoader ({ params }: Route.ClientLoaderArgs) {
 export default function Page({ params, loaderData }: Route.ComponentProps) {
     const { problemset, setProblems, solved, submitted, rate } = loaderData;
 
-    const calcColor = (pid) => {
+    const calcColor = (pid: number) => {
         if (solved[pid] != null) {
             return "var(--solved-bg)";
         }

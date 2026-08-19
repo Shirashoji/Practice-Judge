@@ -1,7 +1,7 @@
-import type { Route } from "./+types/control_panel_llm_conversations";
 // 閲覧可能な会話の一覧。
 // 出てくるのは「本人が共有に同意したもの」と「違反により強制共有になったもの」だけ。
 
+import type { Route } from "./+types/control_panel_llm_conversations";
 import { Link } from 'react-router';
 import { BASEURL } from '../backend_url';
 import { toJST } from '../utils';
@@ -9,6 +9,27 @@ import { toJST } from '../utils';
 export function meta () {
     return [{ title: 'AI会話の監査 - Practice Judge' }];
 }
+
+// GET /api/admin/llm/conversations の1行（api/admin_llm.js のSELECTと対応）。
+// forced_shared は 0 / 1。authz_violations は越権を試みたツール呼び出しの件数。
+type ConversationSummary = {
+    id: number;
+    user_id: number;
+    username: string;
+    problem_id: number;
+    problem_title: string;
+    submission_id: number | null;
+    skill_id: string;
+    model: string;
+    share_mode: string;
+    forced_shared: number;
+    warning_count: number;
+    total_cost_usd: number;
+    created_at: string;
+    updated_at: string;
+    turn_count: number;
+    authz_violations: number;
+};
 
 export async function clientLoader ({ request }: Route.ClientLoaderArgs) {
     const url = new URL(request.url);
@@ -32,7 +53,8 @@ export async function clientLoader ({ request }: Route.ClientLoaderArgs) {
     if (!res.ok) {
         throw new Error('会話一覧を取得できませんでした。');
     }
-    return { ...(await res.json()), username, flagged, page: Number(page ?? 0) };
+    const data: { total: number; conversations: ConversationSummary[] } = await res.json();
+    return { ...data, username, flagged, page: Number(page ?? 0) };
 }
 
 export function ErrorBoundary ({ error }: Route.ErrorBoundaryProps) {
@@ -59,7 +81,7 @@ export default function ControlPanelLlmConversations ({ loaderData }: Route.Comp
     const pageSize = 20;
     const lastPage = Math.max(0, Math.ceil(d.total / pageSize) - 1);
 
-    const linkWith = (patch) => {
+    const linkWith = (patch: Record<string, string | number | null>) => {
         const p = new URLSearchParams();
         if (d.username) p.set('username', d.username);
         if (d.flagged) p.set('flagged', d.flagged);

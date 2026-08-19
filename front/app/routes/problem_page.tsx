@@ -55,7 +55,7 @@ export default function Page({ params, loaderData }: Route.ComponentProps) {
     const problem = loaderData;
     const { loginInfo } = useOutletContext<AppOutletContext>();
 
-    async function handleSubmit(e) {
+    async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
         setSubmitting(true);
 
@@ -266,7 +266,15 @@ export default function Page({ params, loaderData }: Route.ComponentProps) {
     );
 }
 
-function SampleCopyButton ({ children, onClick, className }) {
+// Picoのツールチップは data-tooltip 属性で出す。標準の属性ではないので、
+// ボタンのpropsに足せるよう型を広げておく。
+type TooltipButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & { "data-tooltip"?: string };
+
+function SampleCopyButton ({ children, onClick, className }: {
+    children: React.ReactNode;
+    onClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
+    className: string;
+}) {
     const [copied, setCopied] = useState(false);
     // useEffectはcopiedCodeの変化で発火し、trueへの変化ならwaitしてfalseにセットする。
     useEffect(() => {
@@ -278,7 +286,7 @@ function SampleCopyButton ({ children, onClick, className }) {
         return () => clearTimeout(id);
     }, [copied]);
 
-    const props = {
+    const props: TooltipButtonProps = {
         onClick: (e) => {
             onClick(e);
             setCopied(true);
@@ -298,7 +306,7 @@ function SampleCopyButton ({ children, onClick, className }) {
     );
 }
 
-function AIhelpButton ({ children, onClick }) {
+function AIhelpButton ({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
     const [copied, setCopied] = useState(false);
     // useEffectはcopiedCodeの変化で発火し、trueへの変化ならwaitしてfalseにセットする。
     useEffect(() => {
@@ -310,7 +318,7 @@ function AIhelpButton ({ children, onClick }) {
         return () => clearTimeout(id);
     }, [copied]);
 
-    const props = {
+    const props: TooltipButtonProps = {
         onClick: () => {
             onClick();
             setCopied(true);

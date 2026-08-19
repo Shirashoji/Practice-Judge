@@ -1,7 +1,7 @@
-import type { Route } from "./+types/control_panel_llm";
 // AI学習支援の全体設定。
 // 共有時／非共有時それぞれの無料枠、システム全体の上限、モデルの割り当てを設定する。
 
+import type { Route } from "./+types/control_panel_llm";
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { BASEURL } from '../backend_url';
@@ -10,12 +10,42 @@ export function meta () {
     return [{ title: 'AI学習支援の設定 - Practice Judge' }];
 }
 
+// GET /api/admin/llm/settings の応答（api/admin_llm.js と対応）
+type AdminLlmSettings = {
+    provider: string;
+    // 経路はモデルの系列ごとに別なので、まとめて状態が返る
+    providers: {
+        id: string;
+        label: string;
+        configured: boolean;
+        // 排他の経路（Claude・Gemini）だけ true / false が入る
+        active?: boolean;
+        switchHint?: string;
+        detail?: string;
+    }[];
+    configured: boolean;
+    envDefaultModel: string;
+    envDefaultModelAvailable: boolean;
+    limits: Record<'shared' | 'private' | 'system', { mode: string; usd: number }>;
+    modelByDifficulty: Record<string, string>;
+    allowedModels: string[];
+    knownModels: {
+        model: string;
+        family: string;
+        provider: string;
+        // 経路が未設定のモデルは選ばせない
+        available: boolean;
+    }[];
+    currentMonth: { billingMonth: string; systemCostUsd: number };
+};
+
 export async function clientLoader () {
     const res = await fetch(new URL('/api/admin/llm/settings', BASEURL).href, { credentials: 'include' });
     if (!res.ok) {
         throw new Error('設定を取得できませんでした。');
     }
-    return await res.json();
+    const data: AdminLlmSettings = await res.json();
+    return data;
 }
 
 export function ErrorBoundary ({ error }: Route.ErrorBoundaryProps) {
@@ -124,7 +154,7 @@ export default function ControlPanelLlm ({ loaderData }: Route.ComponentProps) {
         setSaving(false);
     }
 
-    function toggleAllowed (model) {
+    function toggleAllowed (model: string) {
         setAllowed((prev) => (
             prev.indexOf(model) === -1 ? [...prev, model] : prev.filter((m) => m !== model)
         ));
@@ -145,7 +175,7 @@ export default function ControlPanelLlm ({ loaderData }: Route.ComponentProps) {
                 <h2>稼働状況</h2>
                 <table>
                     <tbody>
-                        {d.providers.map((p: any) => (
+                        {d.providers.map((p) => (
                             <tr key={p.id}>
                                 <th scope="row">{p.label}</th>
                                 <td>

@@ -2,6 +2,7 @@ import type { Route } from "./+types/control_panel_problems";
 import { useState } from "react";
 import { useNavigate, Link } from "react-router";
 import { BASEURL } from '../backend_url';
+import type { ProblemListItem } from '../types';
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -13,7 +14,7 @@ export async function clientLoader ({ request }: Route.ClientLoaderArgs) {
     const fp = await fetch(new URL("/api/problems/all", BASEURL).href, {
         credentials: "include",
     });
-    return await fp.json();
+    return await fp.json() as ProblemListItem[];
 }
 
 export default function ControlPanelProblems ({ loaderData }: Route.ComponentProps) {
@@ -64,7 +65,7 @@ export default function ControlPanelProblems ({ loaderData }: Route.ComponentPro
                         </tr>
                     </thead>
                     <tbody>
-                        {problems.map((problem) => {
+                        {problems.map((problem: ProblemListItem) => {
                             return (
                             <tr key={problem.id}>
                                 <td>{problem.id}</td>
@@ -85,10 +86,10 @@ export default function ControlPanelProblems ({ loaderData }: Route.ComponentPro
     );
 }
 
-function RejudgeButton ({ problemId }) {
+function RejudgeButton ({ problemId }: { problemId: number }) {
     const [rejudging, setRejudging] = useState(false);
 
-    const rejudge = async (problemId) => {
+    const rejudge = async (problemId: number) => {
         if (!window.confirm(`問題ID ${problemId}への提出をすべてリジャッジします。よろしいですか？`)) {
             return;
         }

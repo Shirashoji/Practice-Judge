@@ -1,10 +1,10 @@
-import type { Route } from "./+types/control_panel_llm_violations";
 // 警告・違反の監視画面。
 // 誤検知だった場合に取り消せることと、取り消したうえで強制共有を解除できることが要。
 //
 // 警告はユーザー単位で数える（会話をまたいで持ち越す）ので、誤って警告された利用者は
 // 管理者に問い合わせて取り消してもらう。取り消せば次はまた警告のみから始まる。
 
+import type { Route } from "./+types/control_panel_llm_violations";
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { BASEURL } from '../backend_url';
@@ -14,12 +14,43 @@ export function meta () {
     return [{ title: 'AI利用の警告・違反記録 - Practice Judge' }];
 }
 
+// GET /api/admin/llm/violations の応答（api/admin_llm.js のSELECTと対応）。
+// dismissed / force_shared は 0 / 1。
+type ViolationUser = {
+    user_id: number;
+    username: string;
+    total_count: number;
+    active_count: number;
+    direct_answer_count: number;
+    irrelevant_count: number;
+    active_warning_count: number;
+    total_warning_count: number;
+    force_shared: number;
+    last_violation_at: string | null;
+    last_warning_at: string | null;
+};
+
+// 警告と違反は同じ形で記録している（違うのは取り消しの意味だけ）。
+type ViolationRecord = {
+    id: number;
+    user_id: number;
+    username: string;
+    conversation_id: number | null;
+    violation_type: string;
+    reason: string | null;
+    dismissed: number;
+    dismissed_reason: string | null;
+    dismissed_at: string | null;
+    created_at: string;
+};
+
 export async function clientLoader () {
     const res = await fetch(new URL('/api/admin/llm/violations', BASEURL).href, { credentials: 'include' });
     if (!res.ok) {
         throw new Error('違反記録を取得できませんでした。');
     }
-    return await res.json();
+    const data: { users: ViolationUser[]; violations: ViolationRecord[]; warnings: ViolationRecord[] } = await res.json();
+    return data;
 }
 
 export function ErrorBoundary ({ error }: Route.ErrorBoundaryProps) {
@@ -52,7 +83,7 @@ export default function ControlPanelLlmViolations ({ loaderData }: Route.Compone
         }
     }
 
-    async function dismiss (id) {
+    async function dismiss (id: number) {
         const reason = window.prompt('取り消しの理由を入力してください（誤検知の内容など）');
         if (reason == null) {
             return;
@@ -74,7 +105,7 @@ export default function ControlPanelLlmViolations ({ loaderData }: Route.Compone
         setBusy(false);
     }
 
-    async function post (path, body) {
+    async function post (path: string, body: unknown) {
         setBusy(true);
         setMsg('');
         const res = await fetch(new URL(path, BASEURL).href, {
@@ -93,7 +124,7 @@ export default function ControlPanelLlmViolations ({ loaderData }: Route.Compone
         return res.ok ? payload : null;
     }
 
-    async function dismissWarning (id) {
+    async function dismissWarning (id: number) {
         const reason = window.prompt('取り消しの理由を入力してください（誤警告の内容など）');
         if (reason == null) {
             return;
@@ -102,7 +133,7 @@ export default function ControlPanelLlmViolations ({ loaderData }: Route.Compone
     }
 
     // 「誤って警告された」という問い合わせに対する一括リセット。
-    async function resetWarnings (userId, username, count) {
+    async function resetWarnings (userId: number, username: string, count: number) {
         if (!window.confirm(`${username} の有効な警告 ${count} 件をすべて取り消しますか？\n次に同種の要求があった場合は、また警告のみから始まります。`)) {
             return;
         }
@@ -116,7 +147,7 @@ export default function ControlPanelLlmViolations ({ loaderData }: Route.Compone
         }
     }
 
-    async function release (userId, username) {
+    async function release (userId: number, username: string) {
         if (!window.confirm(`${username} の強制共有を解除しますか？\n以降、この人の会話は本人の設定に従って表示されます。`)) {
             return;
         }

@@ -1,7 +1,7 @@
-import type { Route } from "./+types/control_panel_llm_limits";
 // ユーザー別の上限設定。
 // 共有時と非共有時をそれぞれ default / custom / unlimited で設定できる。
 
+import type { Route } from "./+types/control_panel_llm_limits";
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { BASEURL } from '../backend_url';
@@ -10,12 +10,27 @@ export function meta () {
     return [{ title: 'AI利用のユーザー別上限 - Practice Judge' }];
 }
 
+// GET /api/admin/llm/limits の1行（api/admin_llm.js のSELECTと対応）。
+// 上限の金額はユーザー個別の設定が無ければnull。force_shared は 0 / 1。
+type UserLimitRow = {
+    user_id: number;
+    username: string;
+    shared_limit_mode: string;
+    shared_limit_usd: number | null;
+    private_limit_mode: string;
+    private_limit_usd: number | null;
+    share_mode: 'shared' | 'private' | null;
+    force_shared: number;
+    month_cost_usd: number;
+};
+
 export async function clientLoader () {
     const res = await fetch(new URL('/api/admin/llm/limits', BASEURL).href, { credentials: 'include' });
     if (!res.ok) {
         throw new Error('上限設定を取得できませんでした。');
     }
-    return await res.json();
+    const data: { billingMonth: string; users: UserLimitRow[] } = await res.json();
+    return data;
 }
 
 export function ErrorBoundary ({ error }: Route.ErrorBoundaryProps) {
@@ -31,7 +46,7 @@ export function ErrorBoundary ({ error }: Route.ErrorBoundaryProps) {
     );
 }
 
-function UserRow ({ user, onSaved }) {
+function UserRow ({ user, onSaved }: { user: UserLimitRow; onSaved: () => void }) {
     const [sharedMode, setSharedMode] = useState(user.shared_limit_mode);
     const [sharedUsd, setSharedUsd] = useState(user.shared_limit_usd ?? '');
     const [privateMode, setPrivateMode] = useState(user.private_limit_mode);
@@ -66,7 +81,7 @@ function UserRow ({ user, onSaved }) {
         setSaving(false);
     }
 
-    const modeSelect = (value, setter) => (
+    const modeSelect = (value: string, setter: (v: string) => void) => (
         <select value={value} onChange={(e) => setter(e.target.value)}>
             <option value="default">全体既定に従う</option>
             <option value="custom">金額を指定</option>
