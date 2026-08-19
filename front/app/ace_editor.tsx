@@ -11,7 +11,9 @@ import "ace-builds/src-noconflict/theme-solarized_dark";
 
 import { useColorMode } from "./contexts";
 
-const normalizedLanguage = {
+// ジャッジが対応していない言語名が来ても "text" に落とすので、
+// 表に載っていないキーを引くことがある。
+const normalizedLanguage: Record<string, string | undefined> = {
     C: "c_cpp",
     "C++": "c_cpp",
     D: "d",
@@ -34,7 +36,7 @@ function getTheme () {
 // setOptionsで設定可能
 // 行数の自動調節もsetOptionsでできるのを発見した
 
-export function AceEditorReadOnly ({ language, value, expand }) {
+export function AceEditorReadOnly ({ language, value, expand }: { language: string; value: string; expand?: boolean }) {
     console.log(getTheme());
     const lineCount = value.split(/\r\n|\r|\n/).length;
 
@@ -53,12 +55,14 @@ export function AceEditorReadOnly ({ language, value, expand }) {
                 width="100%"
                 fontSize={16}
                 readOnly={true}
-                showLineNumbers={true}
                 showPrintMargin={false}
                 highlightActiveLine={false}
                 tabSize={4}
                 setOptions={{
                     useWorker: false,
+                    // showLineNumbers はコンポーネントのpropsではなくAceのオプション。
+                    // 直接渡してもreact-aceが素通しするだけで効かない。
+                    showLineNumbers: true,
                     maxLines: line,
                 }}
             />
@@ -66,7 +70,7 @@ export function AceEditorReadOnly ({ language, value, expand }) {
     );
 }
 
-export function AceEditorWritable ({ language, value, onChange }) {
+export function AceEditorWritable ({ language, value, onChange }: { language: string; value: string; onChange: (value: string) => void }) {
     const lineCount = value.split(/\r\n|\r|\n/).length;
 
     const line = lineCount < 20
@@ -82,11 +86,11 @@ export function AceEditorWritable ({ language, value, onChange }) {
                 width="100%"
                 fontSize={16}
                 onChange={onChange}
-                showLineNumbers={true}
                 showPrintMargin={false}
                 tabSize={4}
                 setOptions={{
                     useWorker: false,
+                    showLineNumbers: true,
                     minLines: line,
                     maxLines: line,
                 }}

@@ -99,7 +99,7 @@ export default function Page ({ loaderData }: Route.ComponentProps) {
         navigate(`/problems/no/${problemId}/submissions?${query.toString()}`);
     };
 
-    const statusColorClass = {
+    const statusColorClass: Record<string, string | undefined> = {
         AC : "pico-color-green-200",
         WA : "pico-color-pumpkin-200",
         TLE: "pico-color-pumpkin-200",

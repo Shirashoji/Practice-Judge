@@ -36,13 +36,13 @@ export function ErrorBoundary ({ error }: Route.ErrorBoundaryProps) {
     );
 }
 
-const SKILL_LABEL = {
+const SKILL_LABEL: Record<string, string | undefined> = {
     pre_ac_advice: '解き方のヒント（AC前）',
     wa_diagnosis: '不正解の原因究明',
     post_ac_review: 'コードの改善提案（AC後）',
 };
 
-const TYPE_LABEL = {
+const TYPE_LABEL: Record<string, string | undefined> = {
     DIRECT_ANSWER_REQUEST: '直接の解答要求',
     IRRELEVANT_CONVERSATION: '無関係な会話',
 };

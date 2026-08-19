@@ -48,7 +48,7 @@ export function ErrorBoundary ({ error }: Route.ErrorBoundaryProps) {
     );
 }
 
-const SKILL_LABEL = {
+const SKILL_LABEL: Record<string, string | undefined> = {
     pre_ac_advice: '解き方のヒント',
     wa_diagnosis: '不正解の原因究明',
     post_ac_review: 'コードの改善提案',

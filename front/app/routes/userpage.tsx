@@ -67,7 +67,7 @@ export default function UserPage ({ loaderData }: Route.ComponentProps) {
     const [totalSubmissions, setTotalSubmissions] = useState(0);
     const [currentSubmissions, setCurrentSubmissions] = useState<RecentSubmission[]>([]);
 
-    const statusColorClass = {
+    const statusColorClass: Record<string, string | undefined> = {
         AC : "pico-color-green-200",
         WA : "pico-color-pumpkin-200",
         TLE: "pico-color-pumpkin-200",

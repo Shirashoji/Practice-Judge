@@ -35,7 +35,7 @@ export function ErrorBoundary ({ error }: Route.ErrorBoundaryProps) {
     );
 }
 
-const TYPE_LABEL = {
+const TYPE_LABEL: Record<string, string | undefined> = {
     DIRECT_ANSWER_REQUEST: '直接の解答要求',
     IRRELEVANT_CONVERSATION: '無関係な会話',
 };

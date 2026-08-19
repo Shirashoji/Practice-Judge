@@ -4,7 +4,7 @@ import { useNavigate, Link, useOutletContext } from "react-router";
 import type { AppOutletContext } from '../types';
 import "katex/dist/katex.min.css";
 import { BASEURL } from '../backend_url';
-import parse from 'html-react-parser';
+import parse, { Element as HtmlElement } from 'html-react-parser';
 import renderMathInElement from '../auto-render';
 import { AceEditorWritable } from '../ace_editor';
 
@@ -125,7 +125,8 @@ export default function Page({ params, loaderData }: Route.ComponentProps) {
 
     const problemJSX = parse(problemDOM.body.innerHTML, {
         replace (domNode) {
-            if (domNode.attribs?.class?.includes("sample-copy")) {
+            // テキストノードやコメントにはattribsが無いので、タグに絞ってから見る。
+            if (domNode instanceof HtmlElement && domNode.attribs?.class?.includes("sample-copy")) {
                 return (
                     <SampleCopyButton
                         className={domNode.attribs.class}
@@ -139,10 +140,11 @@ export default function Page({ params, loaderData }: Route.ComponentProps) {
         }
     });
 
-    async function handleSampleCopy (element) {
-        const press = document.querySelectorAll('pre.sample');
+    async function handleSampleCopy (element: React.MouseEvent<HTMLButtonElement>) {
+        // innerTextを読むのでHTMLElementとして取る（Elementには無い）
+        const press = document.querySelectorAll<HTMLElement>('pre.sample');
         for (const pre of press) {
-            if (element.target.compareDocumentPosition(pre) & Node.DOCUMENT_POSITION_FOLLOWING) {
+            if (element.currentTarget.compareDocumentPosition(pre) & Node.DOCUMENT_POSITION_FOLLOWING) {
                 await navigator.clipboard.writeText(pre.innerText);
                 break;
             }

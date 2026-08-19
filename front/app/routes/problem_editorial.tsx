@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router";
 import { BASEURL } from '../backend_url';
 import "katex/dist/katex.min.css";
-import parse from 'html-react-parser';
+import parse, { Element as HtmlElement, Text as HtmlText } from 'html-react-parser';
 import renderMathInElement from '../auto-render';
 import { AceEditorReadOnly } from '../ace_editor';
 
@@ -55,7 +55,7 @@ export default function Editorial ({ params, loaderData }: Route.ComponentProps)
 
     const editorialJSX = parse(problemDOM.body.innerHTML, {
         replace (domNode) {
-            if (domNode?.type == "tag" && domNode?.name == "code") {
+            if (domNode instanceof HtmlElement && domNode.name == "code") {
                 // 属性editorの確認
                 const hasEditor = domNode?.attribs?.hasOwnProperty("editor");
                 if (hasEditor == null || !hasEditor) {
@@ -65,10 +65,16 @@ export default function Editorial ({ params, loaderData }: Route.ComponentProps)
                 // languageの取得
                 const language = domNode?.attribs?.language ?? "text";
 
+                // <code editor>の中身はテキストのはず。そうでなければ置換しない。
+                const body = domNode.children[0];
+                if (!(body instanceof HtmlText)) {
+                    return;
+                }
+
                 return (
                     <AceEditorReadOnly
                         language={language}
-                        value={domNode.children[0].data}
+                        value={body.data}
                         expand={true}
                     />
                 );
@@ -77,6 +83,11 @@ export default function Editorial ({ params, loaderData }: Route.ComponentProps)
         }
     });
 
+    // parseは、空なら[]、要素1つならその要素、テキストだけなら文字列を返す。
+    // 長さを見られるのは配列と文字列のときだけ。
+    const isEmptyEditorial = (Array.isArray(editorialJSX) || typeof editorialJSX === "string")
+        && editorialJSX.length == 0;
+
     return (
         <main className="container">
             <article>
@@ -84,7 +95,7 @@ export default function Editorial ({ params, loaderData }: Route.ComponentProps)
 
                 <hr />
 
-                {editorialJSX.length == 0 ? "この問題には解説がありません。" : editorialJSX}
+                {isEmptyEditorial ? "この問題には解説がありません。" : editorialJSX}
             </article>
         </main>
     );

@@ -76,7 +76,7 @@ export async function clientLoader({ params }: Route.ClientLoaderArgs) {
   return { ...data, problem, submission };
 }
 
-const STATUS_COLOR = {
+const STATUS_COLOR: Record<string, string | undefined> = {
   AC: "text-emerald-300 bg-emerald-400/10 border-emerald-400/20",
   WA: "text-amber-300 bg-amber-400/10 border-amber-400/20",
   TLE: "text-amber-300 bg-amber-400/10 border-amber-400/20",

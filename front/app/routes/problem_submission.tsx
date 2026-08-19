@@ -92,7 +92,7 @@ export default function Page({ loaderData, params }: Route.ComponentProps) {
 
     const { whole, each } = submission;
 
-    const statusColorClass = {
+    const statusColorClass: Record<string, string | undefined> = {
         AC : "pico-color-green-200",
         WA : "pico-color-pumpkin-200",
         TLE: "pico-color-pumpkin-200",
