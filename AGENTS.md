@@ -74,6 +74,60 @@ DBはSQLite1本（`data.db`）。Composeではnamed volume `dbdata` に置かれ
 - 言語を追加するときの影響範囲はほぼ [judge-system/source/constants.d](judge-system/source/constants.d) だけ。
   全体の手順は README の「言語追加方法」にある
 
+## ブランチとPR
+
+**GitHub Flow に従う。幹は `main` 1本だけで、常にデプロイ可能な状態に保つ。**
+
+### 作業を始める前に
+
+**`main` で直接作業しない。** 最初のコミットの前に、必ず現在地を確認してブランチを切る。
+
+```sh
+git branch --show-current        # いまどこにいるか確認する
+git switch main && git pull      # 幹を最新にしてから
+git switch -c feature/add-rust-language
+```
+
+### 流れ
+
+1. `main` からトピックブランチを切る
+2. こまめにコミットする（粒度は下の「コミット」を参照）
+3. `main` へ Pull Request を出す
+4. マージされたらトピックブランチは消す
+
+### ブランチ名
+
+`<種別>/<内容>` の形。内容は英語の kebab-case（例: `feature/add-rust-language`、`fix/session-cookie-domain`）。
+
+| prefix | 用途 |
+|---|---|
+| `feature/` | 機能追加 |
+| `fix/` | バグ修正 |
+| `chore/` | 依存更新・設定・雑務 |
+| `docs/` | ドキュメントのみ |
+
+コミットの prefix とは対応するが綴りが違うものがある。機能追加はブランチが `feature/` で
+コミットは `feat:`。ブランチ名に `feat/` は使わない。
+
+### 守ること
+
+- **`main` に直接コミットしない。** 必ずトピックブランチ経由でPRにする
+- **1つのブランチに無関係な変更を混ぜない。** 言語追加とバグ修正は別のブランチにする
+- **長生きさせない。** 数日で `main` に還るサイズに切る。育ちすぎたら分割する
+- **`develop` は使わない。** かつて `main` と `develop` が併存してPRのマージ先が
+  揃わなくなった（PR #1 は `main` へ、PR #2 は `develop` へ入っている）。
+  この混乱を避けるため幹は `main` に一本化する
+
+### upstream への還元
+
+`main` が本家（`upstream`）と繋がる面なので、還元するときは `main` から upstream へPRを出す。
+
+```sh
+git fetch upstream
+git switch main
+git merge upstream/main   # 本家の変更を取り込んでから作業を始める
+```
+
 ## コミット
 
 - subject は英語の conventional commits（`fix:` / `feat:` / `docs:`）
