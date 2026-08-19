@@ -1,10 +1,11 @@
+import type { Route } from "./+types/control_panel_problem";
 import { useState } from "react";
 import { Link } from "react-router";
 import { BASEURL } from "../backend_url";
 import { AceEditorWritable } from '../ace_editor';
 
 // --- clientLoader ---
-export async function clientLoader ({ request, params }) {
+export async function clientLoader ({ request, params }: Route.ClientLoaderArgs) {
     const url = new URL(`/api/problems/no/${params.problemId}/all`, BASEURL).href;
     const res = await fetch(url, {
         credentials: "include",
@@ -17,13 +18,13 @@ export async function clientLoader ({ request, params }) {
     return await res.json();
 }
 
-export function meta({ data }) {
+export function meta({ data }: Route.MetaArgs) {
     return [
         { title: `問題 #${data?.id} 編集 - Practice Judge` },
     ];
 }
 
-export default function ControlPanelProblem ({ loaderData, params }) {
+export default function ControlPanelProblem ({ loaderData, params }: Route.ComponentProps) {
     const [title, setTitle] = useState(loaderData.title);
     const [statement, setStatement] = useState(loaderData.statement);
     const [author, setAuthor] = useState(loaderData.author);

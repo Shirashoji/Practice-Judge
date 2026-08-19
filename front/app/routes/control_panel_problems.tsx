@@ -1,3 +1,4 @@
+import type { Route } from "./+types/control_panel_problems";
 import { useState } from "react";
 import { useNavigate, Link } from "react-router";
 import { BASEURL } from '../backend_url';
@@ -8,14 +9,14 @@ export function meta({}: Route.MetaArgs) {
   ];
 }
 
-export async function clientLoader ({ request }) {
+export async function clientLoader ({ request }: Route.ClientLoaderArgs) {
     const fp = await fetch(new URL("/api/problems/all", BASEURL).href, {
         credentials: "include",
     });
     return await fp.json();
 }
 
-export default function ControlPanelProblems ({ loaderData }) {
+export default function ControlPanelProblems ({ loaderData }: Route.ComponentProps) {
     const problems = loaderData;
 
     const [loading, setLoading] = useState(false);

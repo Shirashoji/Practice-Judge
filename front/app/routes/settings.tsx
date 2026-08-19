@@ -1,3 +1,4 @@
+import type { Route } from "./+types/settings";
 import { BASEURL } from '../backend_url';
 import { useState, useEffect } from 'react';
 import { Link, useOutletContext, useNavigate } from 'react-router';
@@ -11,11 +12,11 @@ export function meta() {
     ];
 }
 
-export async function clientLoader ({ params }) {
+export async function clientLoader ({ params }: Route.ClientLoaderArgs) {
     return;
 }
 
-export function ErrorBoundary ({ error }) {
+export function ErrorBoundary ({ error }: Route.ErrorBoundaryProps) {
     let msg = "不明なエラー";
     if (error instanceof Error) {
         msg = error.message;
@@ -29,7 +30,7 @@ export function ErrorBoundary ({ error }) {
     );
 }
 
-export default function Settings ({ loaderData }) {
+export default function Settings ({ loaderData }: Route.ComponentProps) {
     return (
         <main className="container">
             <h1>設定</h1>

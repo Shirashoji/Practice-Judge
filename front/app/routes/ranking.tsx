@@ -1,3 +1,4 @@
+import type { Route } from "./+types/ranking";
 import { useState } from "react";
 import { Link } from "react-router";
 import { BASEURL } from '../backend_url';
@@ -22,7 +23,7 @@ export async function clientLoader() {
     return { users };
 }
 
-export default function UsersRanking({ loaderData }) {
+export default function UsersRanking({ loaderData }: Route.ComponentProps) {
     const { users } = loaderData;
     // users: [{ user_id, username, role, stars, solved }, ...]
 

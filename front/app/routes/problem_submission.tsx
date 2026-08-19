@@ -1,3 +1,4 @@
+import type { Route } from "./+types/problem_submission";
 import { useState, useEffect, useRef } from "react";
 import { Link, useOutletContext } from "react-router";
 import type { AppOutletContext } from '../types';
@@ -9,7 +10,7 @@ import { ChatLauncher } from '../llm/ChatLauncher';
 // ジャッジが終わった状態。判定中はAIに相談させても実行結果が無く意味がない。
 const FINISHED_STATUSES = ["AC", "WA", "CE", "RE", "TLE", "MLE", "OLE", "IE"];
 
-export async function clientLoader ({ params }) {
+export async function clientLoader ({ params }: Route.ClientLoaderArgs) {
     const res = await fetch(new URL(`/api/problems/no/${params.problemId}/submissions/${params.submissionId}`, BASEURL).href, {
         credentials: "include",
     });
@@ -19,7 +20,7 @@ export async function clientLoader ({ params }) {
     return await res.json();
 }
 
-export function ErrorBoundary ({ error }) {
+export function ErrorBoundary ({ error }: Route.ErrorBoundaryProps) {
     let msg = "不明なエラー";
     if (error instanceof Error) {
         msg = error.message;
@@ -33,7 +34,7 @@ export function ErrorBoundary ({ error }) {
     );
 }
 
-export function meta({ data }) {
+export function meta({ data }: Route.MetaArgs) {
     let title = "提出が見つかりません";
     const id = data?.whole?.id;
     if (id != null) {
@@ -44,7 +45,7 @@ export function meta({ data }) {
     ];
 }
 
-export default function Page({ loaderData, params }) {
+export default function Page({ loaderData, params }: Route.ComponentProps) {
     const initialData = loaderData as {
         whole: any;
         each: Array<any>;

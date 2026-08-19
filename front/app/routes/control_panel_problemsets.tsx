@@ -1,3 +1,4 @@
+import type { Route } from "./+types/control_panel_problemsets";
 import { useState } from "react";
 import { useNavigate, Link } from "react-router";
 import { BASEURL } from "../backend_url";
@@ -15,7 +16,7 @@ export async function clientLoader () {
     return await res.json();
 }
 
-export default function ControlPanelProblemsets({ loaderData }) {
+export default function ControlPanelProblemsets({ loaderData }: Route.ComponentProps) {
     const problemsets = loaderData;
 
     const [loading, setLoading] = useState(false);

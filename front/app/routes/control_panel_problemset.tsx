@@ -1,10 +1,11 @@
+import type { Route } from "./+types/control_panel_problemset";
 import { useState } from "react";
 import { Link } from "react-router";
 import { BASEURL } from "../backend_url";
 import { AceEditorWritable } from '../ace_editor';
 
 // --- loader ---
-export async function clientLoader ({ params }) {
+export async function clientLoader ({ params }: Route.ClientLoaderArgs) {
     const problemset = await fetch(new URL(`/api/problemsets/no/${params.problemsetId}/all`, BASEURL).href, {
         credentials: "include",
     });
@@ -18,14 +19,14 @@ export async function clientLoader ({ params }) {
     };
 }
 
-export function meta({ data }) {
+export function meta({ data }: Route.MetaArgs) {
     return [
         { title: `問題セット編集 #${data.problemsetData.problemset.id} - Practice Judge` },
     ];
 }
 
 // --- Component ---
-export default function ControlPanelProblemset({ loaderData, params }) {
+export default function ControlPanelProblemset({ loaderData, params }: Route.ComponentProps) {
     const { problemset } = loaderData.problemsetData;
 
     const [title, setTitle] = useState(problemset.title ?? "");

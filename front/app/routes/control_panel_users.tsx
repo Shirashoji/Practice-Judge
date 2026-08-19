@@ -1,3 +1,4 @@
+import type { Route } from "./+types/control_panel_users";
 import { useState } from "react";
 import { useNavigate, Link, useOutletContext } from "react-router";
 import type { AppOutletContext } from '../types';
@@ -10,14 +11,14 @@ export function meta({}: Route.MetaArgs) {
   ];
 }
 
-export async function clientLoader ({ request }) {
+export async function clientLoader ({ request }: Route.ClientLoaderArgs) {
     const fp = await fetch(new URL("/api/users", BASEURL).href, {
         credentials: "include",
     });
     return await fp.json();
 }
 
-export default function AllUsers ({ loaderData }) {
+export default function AllUsers ({ loaderData }: Route.ComponentProps) {
     const users = loaderData;
 
     return (

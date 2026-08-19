@@ -1,3 +1,4 @@
+import type { Route } from "./+types/control_panel_llm_violations";
 // 警告・違反の監視画面。
 // 誤検知だった場合に取り消せることと、取り消したうえで強制共有を解除できることが要。
 //
@@ -21,7 +22,7 @@ export async function clientLoader () {
     return await res.json();
 }
 
-export function ErrorBoundary ({ error }) {
+export function ErrorBoundary ({ error }: Route.ErrorBoundaryProps) {
     let msg = '不明なエラー';
     if (error instanceof Error) {
         msg = error.message;
@@ -39,7 +40,7 @@ const TYPE_LABEL = {
     IRRELEVANT_CONVERSATION: '無関係な会話',
 };
 
-export default function ControlPanelLlmViolations ({ loaderData }) {
+export default function ControlPanelLlmViolations ({ loaderData }: Route.ComponentProps) {
     const [data, setData] = useState(loaderData);
     const [msg, setMsg] = useState('');
     const [busy, setBusy] = useState(false);

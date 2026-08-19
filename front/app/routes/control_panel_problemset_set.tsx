@@ -1,10 +1,11 @@
+import type { Route } from "./+types/control_panel_problemset_set";
 import { useState } from "react";
 import { Link } from "react-router";
 import { BASEURL } from "../backend_url";
 
 // --- Loader ---
 // GET /api/problemsets/no/:problemsetId/
-export async function clientLoader ({ params }) {
+export async function clientLoader ({ params }: Route.ClientLoaderArgs) {
     const res1 = await fetch(
         new URL(`/api/problemsets/no/${params.problemsetId}/all`, BASEURL).href, {
         credentials: "include",
@@ -24,16 +25,16 @@ export async function clientLoader ({ params }) {
     }
 }
 
-export function meta({ data }) {
+export function meta({ data }: Route.MetaArgs) {
     return [
         { title: `問題セット #${data.problemsetDetail.problemset.id} セット編集 - Practice Judge` },
     ];
 }
 
-export default function ControlPanelProblemsetSet({ loaderData, params }) {
+export default function ControlPanelProblemsetSet({ loaderData, params }: Route.ComponentProps) {
     const { problemset, setProblems } = loaderData.problemsetDetail;
     const problems = loaderData.problems;
-    const problemsDict = {};
+    const problemsDict: Record<number, any> = {};
     problems.forEach(p => problemsDict[p.id] = p);
 
     // problemset: メタデータ

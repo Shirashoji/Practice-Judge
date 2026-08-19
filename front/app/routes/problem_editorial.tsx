@@ -1,3 +1,4 @@
+import type { Route } from "./+types/problem_editorial";
 import { useState, useEffect } from "react";
 import { Link } from "react-router";
 import { BASEURL } from '../backend_url';
@@ -17,7 +18,7 @@ export function meta({ data }: Route.MetaArgs) {
     ];
 }
 
-export function ErrorBoundary ({ error }) {
+export function ErrorBoundary ({ error }: Route.ErrorBoundaryProps) {
     let msg = "不明なエラー";
     if (error instanceof Error) {
         msg = error.message;
@@ -31,7 +32,7 @@ export function ErrorBoundary ({ error }) {
     );
 }
 
-export async function clientLoader ({ params }) {
+export async function clientLoader ({ params }: Route.ClientLoaderArgs) {
     const res = await fetch(new URL(`/api/problems/no/${params.problemId}/editorial`, BASEURL).href, {
         credentials: "include",
     });
@@ -44,7 +45,7 @@ export async function clientLoader ({ params }) {
     return await res.json();
 }
 
-export default function Editorial ({ params, loaderData }) {
+export default function Editorial ({ params, loaderData }: Route.ComponentProps) {
     const problem = loaderData;
 
     // DOMパース -> <code editor language="text"></code>部分をaceeditorに置換

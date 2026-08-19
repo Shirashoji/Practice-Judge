@@ -1,9 +1,10 @@
+import type { Route } from "./+types/problem_submissions";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { useState, useEffect, useRef } from "react";
 import { BASEURL } from "../backend_url";
 import { toJST } from '../utils';
 
-export async function clientLoader ({ request, params }) {
+export async function clientLoader ({ request, params }: Route.ClientLoaderArgs) {
     const url = new URL(request.url);
     const page = url.searchParams.get("page") ?? "0";
     const username = url.searchParams.get("username") ?? "";
@@ -42,7 +43,7 @@ export async function clientLoader ({ request, params }) {
     return { ...data, title: datap.title, page: Number(page), username, status, language, problemId: params.problemId };
 }
 
-export function ErrorBoundary ({ error }) {
+export function ErrorBoundary ({ error }: Route.ErrorBoundaryProps) {
     let msg = "不明なエラー";
     if (error instanceof Error) {
         msg = error.message;
@@ -56,14 +57,14 @@ export function ErrorBoundary ({ error }) {
     );
 }
 
-export function meta ({ params, data }) {
+export function meta ({ params, data }: Route.MetaArgs) {
     const prefix = data?.username == "" ? "" : `${data?.username} の`;
     return [
         { title: `${data?.title} ${prefix}提出一覧 - Practice Judge` },
     ];
 }
 
-export default function Page ({ loaderData }) {
+export default function Page ({ loaderData }: Route.ComponentProps) {
     const { submissions, total, page, username, status, language, problemId } = loaderData;
 
     const [currentSub, setCurrentSub] = useState(submissions);

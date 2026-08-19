@@ -1,3 +1,4 @@
+import type { Route } from "./+types/problemset_page";
 import { useState, useEffect } from "react";
 import { useNavigate, Link, useOutletContext } from "react-router";
 import { BASEURL } from '../backend_url';
@@ -9,14 +10,14 @@ export function meta({ data }: Route.MetaArgs) {
 
     let title = "問題セットが見つかりません";
     if (id != null && ptitle != null) {
-        title = `${data.problemset.title}`;
+        title = ptitle;
     }
     return [
         { title: `${title} - Practice Judge` },
     ];
 }
 
-export function ErrorBoundary ({ error }) {
+export function ErrorBoundary ({ error }: Route.ErrorBoundaryProps) {
     let msg = "不明なエラー";
     if (error instanceof Error) {
         msg = error.message;
@@ -30,7 +31,7 @@ export function ErrorBoundary ({ error }) {
     );
 }
 
-export async function clientLoader ({ params }) {
+export async function clientLoader ({ params }: Route.ClientLoaderArgs) {
     const fetched = await Promise.all([
         fetch(new URL(`/api/problemsets/no/${params.problemsetId}`, BASEURL).href, {
             credentials: "include",
@@ -50,8 +51,8 @@ export async function clientLoader ({ params }) {
 
     const jsons = await Promise.all(fetched.map(r => r.json()));
 
-    const solved = {};
-    const submitted = {};
+    const solved: Record<number, boolean> = {};
+    const submitted: Record<number, boolean> = {};
     for (const v of jsons[1].solvedIds) {
         solved[v.id] = true;
     }
@@ -59,7 +60,7 @@ export async function clientLoader ({ params }) {
         submitted[v.id] = true;
     }
 
-    const rate = {};
+    const rate: Record<number, { challengers: number; solvers: number }> = {};
     for (const v of jsons[2]) {
         rate[v.problem_id] = { challengers: v.challengers, solvers: v.solvers };
     }
@@ -73,7 +74,7 @@ export async function clientLoader ({ params }) {
     };
 }
 
-export default function Page({ params, loaderData }) {
+export default function Page({ params, loaderData }: Route.ComponentProps) {
     const { problemset, setProblems, solved, submitted, rate } = loaderData;
 
     const calcColor = (pid) => {

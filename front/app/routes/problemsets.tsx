@@ -1,3 +1,4 @@
+import type { Route } from "./+types/problemsets";
 import { useState, useEffect } from "react";
 import { Link } from "react-router";
 import { BASEURL } from '../backend_url';
@@ -22,8 +23,8 @@ export async function clientLoader () {
     ]);
     const ret = await Promise.all(fret.map(r => r.json()));
 
-    const solved = {};
-    const submitted = {};
+    const solved: Record<number, boolean> = {};
+    const submitted: Record<number, boolean> = {};
     for (const v of ret[1].solvedIds) {
         solved[v.id] = true;
     }
@@ -34,7 +35,7 @@ export async function clientLoader () {
     return { problemsets: ret[0], solved, submitted, registeredProblems: ret[2] };
 }
 
-export default function Problemsets ({ loaderData }) {
+export default function Problemsets ({ loaderData }: Route.ComponentProps) {
     const { problemsets, solved, submitted, registeredProblems } = loaderData;
     // problemsets: [{ id, title }]
     // solved: { solved_id1: true, solved_id2: true, ... }

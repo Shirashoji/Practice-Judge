@@ -1,16 +1,17 @@
+import type { Route } from "./+types/userpage";
 import { BASEURL } from '../backend_url';
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router';
 import { toJST } from '../utils';
 
-export function meta({ data }) {
+export function meta({ data }: Route.MetaArgs) {
     const uname = data?.userInfo?.username ?? "ユーザーが見つかりません";
     return [
         { title: `${uname} - Practice Judge` }
     ];
 }
 
-export async function clientLoader ({ params }) {
+export async function clientLoader ({ params }: Route.ClientLoaderArgs) {
     const fUserInfo = await fetch(new URL(`/api/users/${params.userName}`, BASEURL).href, {
         credentials: "include",
     });
@@ -30,7 +31,7 @@ export async function clientLoader ({ params }) {
     return { userInfo, solvedInfo }
 }
 
-export function ErrorBoundary ({ error }) {
+export function ErrorBoundary ({ error }: Route.ErrorBoundaryProps) {
     let msg = "不明なエラー";
     if (error instanceof Error) {
         msg = error.message;
@@ -44,7 +45,7 @@ export function ErrorBoundary ({ error }) {
     );
 }
 
-export default function UserPage ({ loaderData }) {
+export default function UserPage ({ loaderData }: Route.ComponentProps) {
     const { userInfo, solvedInfo } = loaderData;
     const [submissionPage, setSubmissionPage] = useState(0);
     const [totalSubmissions, setTotalSubmissions] = useState(0);

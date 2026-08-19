@@ -1,3 +1,4 @@
+import type { Route } from "./+types/control_panel_llm_limits";
 // ユーザー別の上限設定。
 // 共有時と非共有時をそれぞれ default / custom / unlimited で設定できる。
 
@@ -17,7 +18,7 @@ export async function clientLoader () {
     return await res.json();
 }
 
-export function ErrorBoundary ({ error }) {
+export function ErrorBoundary ({ error }: Route.ErrorBoundaryProps) {
     let msg = '不明なエラー';
     if (error instanceof Error) {
         msg = error.message;
@@ -109,7 +110,7 @@ function UserRow ({ user, onSaved }) {
     );
 }
 
-export default function ControlPanelLlmLimits ({ loaderData }) {
+export default function ControlPanelLlmLimits ({ loaderData }: Route.ComponentProps) {
     const [data, setData] = useState(loaderData);
 
     async function reload () {

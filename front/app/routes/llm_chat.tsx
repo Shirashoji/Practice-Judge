@@ -1,3 +1,4 @@
+import type { Route } from "./+types/llm_chat";
 // チャット専用画面。
 //
 // 問題文・該当の提出（コードと実行結果）・チャットを同時に見られるようにする。
@@ -18,12 +19,12 @@ import {
   type ProgressState,
 } from "../llm/GenerationProgress";
 
-export function meta({ data }: any) {
+export function meta({ data }: Route.MetaArgs) {
   const title = data?.conversation?.problem_title ?? "会話";
   return [{ title: `AIチャット: ${title} - Practice Judge` }];
 }
 
-export function ErrorBoundary({ error }) {
+export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   let msg = "不明なエラー";
   if (error instanceof Error) {
     msg = error.message;
@@ -36,7 +37,7 @@ export function ErrorBoundary({ error }) {
   );
 }
 
-export async function clientLoader({ params }) {
+export async function clientLoader({ params }: Route.ClientLoaderArgs) {
   const convRes = await fetch(
     new URL(`/api/llm/conversations/${params.conversationId}`, BASEURL).href,
     {
@@ -86,7 +87,7 @@ const STATUS_COLOR = {
   IE: "text-red-300 bg-red-400/10 border-red-400/20",
 };
 
-export default function LlmChat({ loaderData }) {
+export default function LlmChat({ loaderData }: Route.ComponentProps) {
   const { conversation, problem, submission } = loaderData;
 
   const [turns, setTurns] = useState<any[]>(loaderData.turns ?? []);

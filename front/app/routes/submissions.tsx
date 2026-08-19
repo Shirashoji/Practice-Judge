@@ -1,9 +1,10 @@
+import type { Route } from "./+types/submissions";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { useState, useEffect, useRef } from "react";
 import { BASEURL } from "../backend_url";
 import { toJST } from '../utils';
 
-export async function clientLoader ({ request, params }) {
+export async function clientLoader ({ request, params }: Route.ClientLoaderArgs) {
     const url = new URL(request.url);
     const page = url.searchParams.get("page") ?? "0";
     const status = url.searchParams.get("status") ?? "";
@@ -27,7 +28,7 @@ export async function clientLoader ({ request, params }) {
     return { ...data, page: Number(page), status, language };
 }
 
-export function ErrorBoundary ({ error }) {
+export function ErrorBoundary ({ error }: Route.ErrorBoundaryProps) {
     let msg = "不明なエラー";
     if (error instanceof Error) {
         msg = error.message;
@@ -47,7 +48,7 @@ export function meta () {
     ];
 }
 
-export default function Page ({ loaderData }) {
+export default function Page ({ loaderData }: Route.ComponentProps) {
     const { submissions, total, page, status, language } = loaderData;
 
     const [currentSub, setCurrentSub] = useState(submissions);

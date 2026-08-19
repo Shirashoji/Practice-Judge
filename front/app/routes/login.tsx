@@ -1,3 +1,4 @@
+import type { Route } from "./+types/login";
 import { useState } from "react";
 import { useNavigate, redirect } from 'react-router';
 import { BASEURL } from '../backend_url';

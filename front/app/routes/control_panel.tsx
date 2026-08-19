@@ -1,3 +1,4 @@
+import type { Route } from "./+types/control_panel";
 import { Link } from 'react-router';
 
 export function meta({ data }: Route.MetaArgs) {

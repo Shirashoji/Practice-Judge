@@ -1,14 +1,15 @@
+import type { Route } from "./+types/control_panel_problem_testcase";
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router';
 import { BASEURL } from '../backend_url';
 
-export function meta ({ params, data }) {
+export function meta ({ params, data }: Route.MetaArgs) {
     return [
         { title: `問題 #${params.problemId} テストケース編集 - Practice Judge` },
     ];
 }
 
-export async function clientLoader ({ request, params }) {
+export async function clientLoader ({ request, params }: Route.ClientLoaderArgs) {
     const re = await fetch(new URL(`/api/problems/no/${params.problemId}/testcase`, BASEURL).href, {
         credentials: "include",
     });
@@ -16,7 +17,7 @@ export async function clientLoader ({ request, params }) {
     return res;
 }
 
-export default function ControlPanelTestcase ({ loaderData, params }) {
+export default function ControlPanelTestcase ({ loaderData, params }: Route.ComponentProps) {
     const problemId = params.problemId;
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);

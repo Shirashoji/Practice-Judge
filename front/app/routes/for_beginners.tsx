@@ -1,3 +1,4 @@
+import type { Route } from "./+types/for_beginners";
 import { Link } from 'react-router';
 import { BASEURL } from '../backend_url';
 

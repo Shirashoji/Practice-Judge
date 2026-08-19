@@ -1,3 +1,4 @@
+import type { Route } from "./+types/control_panel_llm";
 // AI学習支援の全体設定。
 // 共有時／非共有時それぞれの無料枠、システム全体の上限、モデルの割り当てを設定する。
 
@@ -17,7 +18,7 @@ export async function clientLoader () {
     return await res.json();
 }
 
-export function ErrorBoundary ({ error }) {
+export function ErrorBoundary ({ error }: Route.ErrorBoundaryProps) {
     let msg = '不明なエラー';
     if (error instanceof Error) {
         msg = error.message;
@@ -83,7 +84,7 @@ function LimitEditor ({ label, hint = null, mode, usd, onChange }: any) {
     );
 }
 
-export default function ControlPanelLlm ({ loaderData }) {
+export default function ControlPanelLlm ({ loaderData }: Route.ComponentProps) {
     const d = loaderData;
 
     const [shared, setShared] = useState({ mode: d.limits.shared.mode, usd: d.limits.shared.usd });

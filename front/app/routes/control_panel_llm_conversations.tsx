@@ -1,3 +1,4 @@
+import type { Route } from "./+types/control_panel_llm_conversations";
 // 閲覧可能な会話の一覧。
 // 出てくるのは「本人が共有に同意したもの」と「違反により強制共有になったもの」だけ。
 
@@ -9,7 +10,7 @@ export function meta () {
     return [{ title: 'AI会話の監査 - Practice Judge' }];
 }
 
-export async function clientLoader ({ request }) {
+export async function clientLoader ({ request }: Route.ClientLoaderArgs) {
     const url = new URL(request.url);
     const params = new URLSearchParams();
     const username = url.searchParams.get('username');
@@ -34,7 +35,7 @@ export async function clientLoader ({ request }) {
     return { ...(await res.json()), username, flagged, page: Number(page ?? 0) };
 }
 
-export function ErrorBoundary ({ error }) {
+export function ErrorBoundary ({ error }: Route.ErrorBoundaryProps) {
     let msg = '不明なエラー';
     if (error instanceof Error) {
         msg = error.message;
@@ -53,7 +54,7 @@ const SKILL_LABEL = {
     post_ac_review: 'コードの改善提案',
 };
 
-export default function ControlPanelLlmConversations ({ loaderData }) {
+export default function ControlPanelLlmConversations ({ loaderData }: Route.ComponentProps) {
     const d = loaderData;
     const pageSize = 20;
     const lastPage = Math.max(0, Math.ceil(d.total / pageSize) - 1);

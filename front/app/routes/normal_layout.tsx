@@ -1,8 +1,10 @@
+import type { Route } from "./+types/normal_layout";
 import { Link, Outlet, useNavigate } from 'react-router';
 import { useState, useRef } from 'react';
 import { BASEURL } from '../backend_url';
 
 import { useColorMode } from '../contexts';
+import type { ThemeMode } from '../contexts';
 
 export async function clientLoader () {
     const res = await fetch(new URL('/api/auth/me', BASEURL).href, {
@@ -16,7 +18,7 @@ export function shouldRevalidate() {
 }
 
 
-export default function Outer ({ loaderData }) {
+export default function Outer ({ loaderData }: Route.ComponentProps) {
     const loginInfo = loaderData;
 
     return (
@@ -67,11 +69,12 @@ function TitleMenu ({ loginInfo }) {
 
     const title = <Link to="/" style={{ fontSize: "2em", textDecoration: "none" }}>Practice Judge</Link>;
 
+    // selectのoptionはauto/light/darkの3つだけなので、value は必ず ThemeMode になる。
     const themeSwitch =
         <select
             aria-label="表示テーマ"
             value={colorModeObj?.themeMode ?? "auto"}
-            onChange={(e) => colorModeObj?.setThemeMode(e.target.value)}
+            onChange={(e) => colorModeObj?.setThemeMode(e.target.value as ThemeMode)}
             style={{ width: "auto", margin: 0, padding: "0.5em 2.2em 0.5em 0.75em" }}
         >
             <option value="auto">◐ Auto</option>

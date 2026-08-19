@@ -1,3 +1,4 @@
+import type { Route } from "./+types/control_panel_llm_conversation";
 // 会話1件の監査ビュー。
 // ユーザーの発言とAIの応答だけでなく、実行されたツール・引数・結果まで全部見せる。
 // 「AIが何を根拠にそう答えたか」まで追えないと、不適切な応答の原因が特定できないため。
@@ -7,11 +8,11 @@ import { BASEURL } from '../backend_url';
 import { toJST } from '../utils';
 import { Conversation } from '../llm/Message';
 
-export function meta ({ data }: any) {
+export function meta ({ data }: Route.MetaArgs) {
     return [{ title: `AI会話 #${data?.conversation?.id ?? ''} - Practice Judge` }];
 }
 
-export async function clientLoader ({ params }) {
+export async function clientLoader ({ params }: Route.ClientLoaderArgs) {
     const res = await fetch(
         new URL(`/api/admin/llm/conversations/${params.conversationId}`, BASEURL).href,
         { credentials: 'include' },
@@ -22,7 +23,7 @@ export async function clientLoader ({ params }) {
     return await res.json();
 }
 
-export function ErrorBoundary ({ error }) {
+export function ErrorBoundary ({ error }: Route.ErrorBoundaryProps) {
     let msg = '不明なエラー';
     if (error instanceof Error) {
         msg = error.message;
@@ -46,7 +47,7 @@ const TYPE_LABEL = {
     IRRELEVANT_CONVERSATION: '無関係な会話',
 };
 
-export default function ControlPanelLlmConversation ({ loaderData }) {
+export default function ControlPanelLlmConversation ({ loaderData }: Route.ComponentProps) {
     const { conversation: c, turns, toolCalls, warnings, violations } = loaderData;
 
     return (
