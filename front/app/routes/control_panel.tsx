@@ -22,6 +22,12 @@ export default function ControlPanel () {
                 <p><Link to="/control-panel/problems">問題管理</Link></p>
                 <p><Link to="/control-panel/problemsets">問題セット管理</Link></p>
                 <p><Link to="/control-panel/users">ユーザ管理</Link></p>
+
+                <h3>AI学習支援</h3>
+                <p><Link to="/control-panel/llm">設定（無料枠・モデル）</Link></p>
+                <p><Link to="/control-panel/llm/limits">ユーザー別上限</Link></p>
+                <p><Link to="/control-panel/llm/violations">警告・違反記録</Link></p>
+                <p><Link to="/control-panel/llm/conversations">会話の監査</Link></p>
             </main>
         </>
     );

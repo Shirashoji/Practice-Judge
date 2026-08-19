@@ -1,5 +1,7 @@
 @import "@picocss/pico/css/pico.slate.css";
 @import "@picocss/pico/css/pico.colors.css";
+@import "tailwindcss";
+@custom-variant dark (&:where(.llm-workspace.dark, .llm-workspace.dark *));
 
 html {
     --header-bg: var(--pico-color-sand-100);
@@ -8,6 +10,14 @@ html {
     --submitted-bg: var(--pico-color-pumpkin-50);
 
     --editor-color: #ebebeb;
+
+    --llm-user-bg: var(--pico-color-sand-50);
+    --llm-user-border: var(--pico-color-sand-200);
+    --llm-assistant-bg: var(--pico-color-slate-50);
+    --llm-assistant-border: var(--pico-color-slate-200);
+    --llm-pane-border: var(--pico-color-slate-200);
+    --llm-tool-bg: var(--pico-color-slate-50);
+    --llm-plan-selected: var(--pico-color-green-100);
 }
 
 html.dark {
@@ -17,6 +27,14 @@ html.dark {
     --submitted-bg: var(--pico-color-pumpkin-50);
 
     --editor-color: #002B36;
+
+    --llm-user-bg: var(--pico-color-sand-850);
+    --llm-user-border: var(--pico-color-sand-700);
+    --llm-assistant-bg: var(--pico-color-slate-850);
+    --llm-assistant-border: var(--pico-color-slate-700);
+    --llm-pane-border: var(--pico-color-slate-700);
+    --llm-tool-bg: var(--pico-color-slate-900);
+    --llm-plan-selected: var(--pico-color-green-900);
 }
 
 .top-header {
@@ -76,4 +94,514 @@ button.searchbtn {
 .button-small-padding {
     --pico-form-element-spacing-vertical: 0.5em;
     --pico-form-element-spacing-horizontal: 0.5em;
+}
+
+
+/* ============================================================
+   AI学習支援
+   ============================================================ */
+
+.llm-note {
+    font-size: 0.85em;
+    color: var(--pico-muted-color);
+    margin: 0.3em 0;
+}
+
+/* --- 共有設定の初回選択 --- */
+
+.llm-plan-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1em;
+    margin: 1em 0;
+}
+
+.llm-plan {
+    margin: 0;
+    border: 2px solid var(--llm-pane-border);
+}
+
+.llm-plan-selected {
+    border-color: var(--pico-primary);
+    background: var(--llm-plan-selected);
+}
+
+.llm-plan-limit {
+    font-size: 1.15em;
+    font-weight: bold;
+    margin: 0.4em 0;
+}
+
+.llm-badge {
+    font-size: 0.75em;
+    padding: 0.1em 0.5em;
+    margin-left: 0.5em;
+    border-radius: 1em;
+    background: var(--pico-primary);
+    color: var(--pico-primary-inverse);
+}
+
+/* --- 一方向説明 --- */
+
+.llm-advice-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* --- ツール実行の表示 --- */
+
+.llm-tool-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em;
+    margin: 0.4em 0;
+}
+
+.llm-chip {
+    font-size: 0.8em;
+    padding: 0.15em 0.6em;
+    border-radius: 1em;
+    background: var(--llm-tool-bg);
+    border: 1px solid var(--llm-pane-border);
+}
+
+.llm-chip-error {
+    border-color: var(--pico-color-pumpkin-400);
+}
+
+.llm-tool {
+    margin: 0.4em 0;
+}
+
+/* Picoはbutton内で --pico-color を primary-inverse（白）に上書きするため、
+   ここで --pico-color 自体を差し替えないと明るい背景に白文字になって読めない。 */
+.llm-tool-toggle {
+    --pico-form-element-spacing-vertical: 0.3em;
+    --pico-form-element-spacing-horizontal: 0.6em;
+    --pico-background-color: var(--llm-tool-bg);
+    --pico-border-color: var(--llm-pane-border);
+    --pico-color: var(--pico-contrast);
+    font-size: 0.85em;
+    width: auto;
+}
+
+.llm-tool-hint {
+    color: var(--pico-muted-color);
+    margin-left: 0.4em;
+}
+
+.llm-tool-detail {
+    font-size: 0.85em;
+    padding-left: 0.8em;
+    border-left: 3px solid var(--llm-pane-border);
+}
+
+.llm-tool-detail pre {
+    margin: 0.2em 0 0.6em 0;
+}
+
+/* --- 会話の吹き出し --- */
+
+.llm-turn {
+    width: min(100%, 48rem);
+    max-width: 100%;
+    margin: 0.55em 0;
+    padding: 0.75em 0.95em;
+    border: 1px solid var(--llm-assistant-border);
+    border-radius: var(--pico-border-radius);
+    background: var(--llm-assistant-bg);
+}
+
+.llm-turn-user {
+    align-self: flex-end;
+    width: min(88%, 42rem);
+    border-color: var(--llm-user-border);
+    background: var(--llm-user-bg);
+}
+
+.llm-turn-assistant {
+    align-self: flex-start;
+}
+
+.llm-turn-role {
+    font-size: 0.75em;
+    font-weight: bold;
+    color: var(--pico-muted-color);
+    margin-bottom: 0.2em;
+}
+
+/* Markdownはチャット本文の読みやすさを優先し、通常ページより密に表示する */
+.llm-markdown {
+    min-width: 0;
+    max-width: 72ch;
+    font-size: 1rem;
+    line-height: 1.7;
+    overflow-wrap: anywhere;
+    word-break: normal;
+}
+
+.llm-markdown > :first-child {
+    margin-top: 0;
+}
+
+.llm-markdown > :last-child {
+    margin-bottom: 0;
+}
+
+.llm-markdown p,
+.llm-markdown ul,
+.llm-markdown ol,
+.llm-markdown blockquote,
+.llm-markdown table,
+.llm-markdown-code {
+    margin-top: 0.6em;
+    margin-bottom: 0.6em;
+}
+
+.llm-markdown h1,
+.llm-markdown h2,
+.llm-markdown h3,
+.llm-markdown h4,
+.llm-markdown h5,
+.llm-markdown h6 {
+    line-height: 1.3;
+    margin: 0.7em 0 0.3em;
+}
+
+.llm-markdown h1 { font-size: 1.25em; }
+.llm-markdown h2 { font-size: 1.18em; }
+.llm-markdown h3 { font-size: 1.12em; }
+.llm-markdown h4 { font-size: 1.06em; }
+.llm-markdown h5,
+.llm-markdown h6 { font-size: 1em; }
+
+.llm-markdown li {
+    margin-bottom: 0.25em;
+}
+
+.llm-markdown ul,
+.llm-markdown ol {
+    padding-left: 1.5em;
+}
+
+.llm-markdown blockquote {
+    padding: 0.35em 0.7em;
+    border-left: 3px solid var(--llm-pane-border);
+    color: var(--pico-muted-color);
+}
+
+.llm-markdown blockquote > :last-child {
+    margin-bottom: 0;
+}
+
+.llm-markdown :not(pre) > code {
+    padding: 0.1em 0.3em;
+    border-radius: 0.2em;
+    background: var(--pico-code-background-color);
+    color: var(--pico-code-color);
+}
+
+.llm-markdown table {
+    display: block;
+    width: max-content;
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+.llm-markdown-code {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+.llm-markdown .katex-display {
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+/* --- チャット専用の2ペイン画面 --- */
+
+.llm-chat-page {
+    padding: 0 1rem;
+}
+
+.llm-chat-crumb {
+    margin-bottom: 0.3em;
+}
+
+.llm-chat-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(22rem, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    gap: 0.8em;
+    height: calc(100vh - 8.5rem);
+    height: calc(100dvh - 8.5rem);
+    min-height: 26rem;
+    overflow: hidden;
+}
+
+/* 画面が狭いときは縦積みにして、各ペインを個別にスクロールさせる */
+@media (max-width: 1200px) {
+    .llm-chat-grid {
+        grid-template-columns: 1fr;
+        grid-template-rows: none;
+        height: auto;
+        min-height: 0;
+        overflow: visible;
+    }
+    .llm-pane {
+        height: min(38rem, calc(100dvh - 7rem));
+    }
+    .llm-chat-pane {
+        height: max(32rem, calc(100dvh - 7rem));
+    }
+}
+
+.llm-pane {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    border: 1px solid var(--llm-pane-border);
+    border-radius: var(--pico-border-radius);
+    overflow: hidden;
+    min-height: 0;
+    contain: layout paint;
+}
+
+.llm-pane-header {
+    padding: 0.4em 0.8em;
+    background: var(--header-bg);
+    border-bottom: 1px solid var(--llm-pane-border);
+    font-weight: bold;
+    flex: 0 0 auto;
+}
+
+.llm-context-tabs {
+    display: flex;
+    gap: 0.4em;
+}
+
+.llm-context-tabs button {
+    width: auto;
+    padding: 0.3em 0.7em;
+    margin: 0;
+    font-size: 0.9em;
+}
+
+.llm-generation-progress {
+    margin-bottom: 0.7em;
+    padding: 0.55em 0.7em;
+    border: 1px solid var(--llm-pane-border);
+    border-radius: var(--pico-border-radius);
+    background: var(--header-bg);
+}
+
+.llm-generation-progress p:last-child,
+.llm-progress-status {
+    margin-bottom: 0;
+}
+
+.llm-generation-progress details {
+    margin: 0.35em 0;
+}
+
+.llm-pane-body {
+    padding: 0.8em;
+    overflow-x: hidden;
+    overflow-y: auto;
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    overscroll-behavior: contain;
+}
+
+.llm-chat-log {
+    display: flex;
+    flex-direction: column;
+    overflow-anchor: none;
+}
+
+.llm-chat-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 6.5rem;
+    align-items: stretch;
+    gap: 0.6em;
+    flex: 0 0 auto;
+    padding: 0.65em;
+    border-top: 1px solid var(--llm-pane-border);
+    margin: 0;
+}
+
+.llm-chat-form textarea {
+    min-height: 5.25rem;
+    margin: 0;
+    resize: vertical;
+}
+
+.llm-chat-form .llm-chat-submit {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.2em;
+    min-height: 5.25rem;
+    margin: 0;
+    padding: 0.65em 0.8em;
+    font-weight: 700;
+}
+
+.llm-chat-submit [aria-hidden="true"] {
+    font-size: 1.35em;
+    line-height: 1;
+}
+
+@media (max-width: 480px) {
+    .llm-chat-page {
+        padding: 0 0.5rem;
+    }
+    .llm-chat-form {
+        grid-template-columns: minmax(0, 1fr) 5.25rem;
+    }
+}
+
+/* 長いコードやテーブルでページ全体が横スクロールしないようにする */
+.llm-pane-body pre,
+.llm-pane-body table {
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+/* LLM専用ワークスペース。既存ページのPicoテーマから視覚的に独立させる。 */
+.llm-workspace {
+    color-scheme: light;
+    --llm-user-bg: rgb(238 242 255);
+    --llm-user-border: rgb(199 210 254);
+    --llm-assistant-bg: rgb(255 255 255 / 0.9);
+    --llm-assistant-border: rgb(226 232 240);
+    --llm-pane-border: rgb(226 232 240);
+    --llm-tool-bg: rgb(248 250 252);
+}
+
+.llm-workspace.dark {
+    color-scheme: dark;
+    --llm-user-bg: rgb(67 56 202 / 0.3);
+    --llm-user-border: rgb(129 140 248 / 0.38);
+    --llm-assistant-bg: rgb(15 23 42 / 0.94);
+    --llm-assistant-border: rgb(71 85 105 / 0.72);
+    --llm-pane-border: rgb(71 85 105 / 0.6);
+    --llm-tool-bg: rgb(15 23 42 / 0.96);
+}
+
+.llm-workspace :where(button, textarea) {
+    font-family: inherit;
+}
+
+.llm-workspace .llm-turn {
+    width: min(92%, 48rem);
+    margin: 0 0 1rem;
+    border-radius: 1rem;
+    color: rgb(51 65 85);
+    box-shadow: 0 12px 30px rgb(0 0 0 / 0.12);
+}
+
+.llm-workspace .llm-turn-user {
+    width: min(82%, 40rem);
+    color: rgb(49 46 129);
+}
+
+.llm-workspace .llm-turn-role {
+    color: rgb(79 70 229);
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.llm-workspace .llm-turn-user .llm-turn-role {
+    color: rgb(67 56 202);
+}
+
+.llm-workspace .llm-markdown {
+    color: inherit;
+    font-size: 0.925rem;
+    line-height: 1.75;
+}
+
+.llm-workspace .llm-markdown :where(p, li, blockquote, td, th, code) {
+    color: inherit;
+}
+
+.llm-workspace .llm-markdown :where(h1, h2, h3, h4, h5, h6, strong) {
+    color: rgb(15 23 42);
+}
+
+.llm-workspace .llm-markdown a {
+    color: rgb(79 70 229);
+}
+
+.llm-workspace .llm-generation-progress {
+    border-color: rgb(129 140 248 / 0.2);
+    background: rgb(79 70 229 / 0.08);
+}
+
+.llm-workspace .llm-note {
+    color: rgb(100 116 139);
+}
+
+/* 送信ボタンはアイコン1つ分の枠しか持たない。
+   Picoはaria-busy="true"の要素に::beforeでスピナーを差し込むが、
+   それを許すとアイコンと同じグリッドセルに2つ入って重なり、ボタンが崩れる。
+   ローディング表示は中身のアイコンを差し替えて行うので、こちらは止める。 */
+.llm-composer-send[aria-busy="true"]::before {
+    content: none;
+}
+
+.llm-workspace.dark .llm-turn {
+    color: rgb(226 232 240);
+}
+
+.llm-workspace.dark .llm-turn-user {
+    color: rgb(238 242 255);
+}
+
+.llm-workspace.dark .llm-turn-role,
+.llm-workspace.dark .llm-turn-user .llm-turn-role {
+    color: rgb(199 210 254);
+}
+
+.llm-workspace.dark .llm-markdown :where(h1, h2, h3, h4, h5, h6, strong) {
+    color: rgb(255 255 255);
+}
+
+.llm-workspace.dark .llm-markdown a {
+    color: rgb(196 181 253);
+}
+
+.llm-context-content :where(h1, h2, h3, h4, h5, h6) {
+    color: rgb(15 23 42);
+}
+
+.llm-context-content :where(pre, table) {
+    color: rgb(51 65 85);
+}
+
+.llm-workspace.dark .llm-context-content :where(h1, h2, h3, h4, h5, h6) {
+    color: rgb(248 250 252);
+}
+
+.llm-workspace.dark .llm-context-content :where(pre, table) {
+    color: rgb(226 232 240);
+}
+
+.llm-workspace ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.llm-workspace ::-webkit-scrollbar-thumb {
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background: rgb(100 116 139 / 0.55);
+    background-clip: padding-box;
 }
