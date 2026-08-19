@@ -164,7 +164,31 @@ async function sendJSON (path: string, method: string, body: any) {
     return res;
 }
 
-export function fetchSettings () {
+// 1人あたりの月額上限。共有時と非共有時で独立しているので、両方まとめて返ってくる。
+// 無制限なら金額が無く、custom なら必ず金額がある（api/llm/cost.js の resolveUserLimit）。
+export type LlmLimit =
+    | { mode: 'unlimited'; limitUsd: null; source: 'user' | 'default' }
+    | { mode: 'custom'; limitUsd: number; source: 'user' | 'default' };
+
+// GET /api/llm/settings（api/llm.js）の応答。
+// shareMode は初回利用時に本人が選ぶまで null。
+export type LlmSettings = {
+    available: boolean;
+    shareMode: 'shared' | 'private' | null;
+    forceShared: boolean;
+    preferredModel: string;
+    allowedModels: { model: string; family: string; inputUsdPerMTok: number; outputUsdPerMTok: number }[];
+    budget: {
+        billingMonth: string;
+        monthCostUsd: number;
+        shareMode: 'shared' | 'private' | null;
+        limits: { shared: LlmLimit; private: LlmLimit };
+        // 共有設定が未選択なら、どちらの枠を使うか決まらないので null。
+        current: LlmLimit | null;
+    };
+};
+
+export function fetchSettings (): Promise<LlmSettings> {
     return getJSON('/api/llm/settings');
 }
 

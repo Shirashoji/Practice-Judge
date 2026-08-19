@@ -49,7 +49,7 @@ export default function Outer ({ loaderData }: Route.ComponentProps) {
 function TitleMenu ({ loginInfo }) {
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
-    const userDropdownRef = useRef(null);
+    const userDropdownRef = useRef<HTMLDetailsElement>(null);
 
     const colorModeObj = useColorMode();
 

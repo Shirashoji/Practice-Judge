@@ -5,6 +5,7 @@ import { Link, useOutletContext, useNavigate } from 'react-router';
 import type { AppOutletContext } from '../types';
 import { isValidUsername, isValidPassword } from '../utils';
 import { fetchSettings, updateSettings } from '../llm/client';
+import type { LlmLimit, LlmSettings as LlmSettingsData } from '../llm/client';
 
 export function meta() {
     return [
@@ -45,7 +46,7 @@ export default function Settings ({ loaderData }: Route.ComponentProps) {
 // AI学習支援の設定
 // ------------------------------------------------------------
 
-function formatLimit (limit) {
+function formatLimit (limit: LlmLimit | null) {
     if (limit == null) {
         return "—";
     }
@@ -56,7 +57,7 @@ function formatLimit (limit) {
 }
 
 function LlmSettings () {
-    const [data, setData] = useState(null);
+    const [data, setData] = useState<LlmSettingsData | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [msg, setMsg] = useState("");

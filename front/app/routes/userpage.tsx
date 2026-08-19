@@ -45,11 +45,27 @@ export function ErrorBoundary ({ error }: Route.ErrorBoundaryProps) {
     );
 }
 
+// GET /api/users/:username/recent-submissions の1行。
+// ジャッジ中は time_sec / memory_kb がまだ埋まっていない。
+type RecentSubmission = {
+    id: number;
+    problem_id: number;
+    problem_title: string;
+    difficulty: number;
+    username: string;
+    code_language: string;
+    status: string;
+    time_sec: number | null;
+    memory_kb: number | null;
+    created_at: string;
+    bytes: number;
+};
+
 export default function UserPage ({ loaderData }: Route.ComponentProps) {
     const { userInfo, solvedInfo } = loaderData;
     const [submissionPage, setSubmissionPage] = useState(0);
     const [totalSubmissions, setTotalSubmissions] = useState(0);
-    const [currentSubmissions, setCurrentSubmissions] = useState([]);
+    const [currentSubmissions, setCurrentSubmissions] = useState<RecentSubmission[]>([]);
 
     const statusColorClass = {
         AC : "pico-color-green-200",

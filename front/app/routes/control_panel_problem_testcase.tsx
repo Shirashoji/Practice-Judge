@@ -29,11 +29,19 @@ export default function ControlPanelTestcase ({ loaderData, params }: Route.Comp
 
     const [message, setMessage] = useState("");
     const [uploading, setUploading] = useState(false);
-    const fileinputRef = useRef(null);
+    const fileinputRef = useRef<HTMLInputElement>(null);
 
     const submitZipfile = async () => {
+        // ファイル未選択でもボタンは押せる。以前はundefinedをappendしてサーバ側で
+        // エラーにしていたので、ここで気付けるようにする。
+        const zipfile = fileinputRef.current?.files?.[0];
+        if (zipfile == null) {
+            setMessage("エラー: zipファイルを選択してください。");
+            return;
+        }
+
         const data = new FormData();
-        data.append('testcase-zip', fileinputRef.current?.files[0]);
+        data.append('testcase-zip', zipfile);
         setUploading(true);
         const f = fetch(new URL(`/api/problems/no/${problemId}/testcase/upload-zip`, BASEURL).href, {
             credentials: "include",
