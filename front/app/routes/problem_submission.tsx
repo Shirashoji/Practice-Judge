@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Link, useOutletContext } from "react-router";
 import type { AppOutletContext } from '../types';
 import { BASEURL } from "../backend_url";
-import { AceEditorReadOnly } from "../ace_editor.tsx";
+import { AceEditorReadOnly } from "../ace_editor";
 import { toJST } from '../utils';
 import { ChatLauncher } from '../llm/ChatLauncher';
 

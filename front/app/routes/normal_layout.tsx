@@ -124,7 +124,7 @@ function TitleMenu ({ loginInfo }) {
                             <li
                                 role="button"
                                 onClick={handleLogout}
-                                disabled={loading}
+                                aria-disabled={loading}
                                 aria-busy={loading ? "true" : "false"}
                             >
                                 ログアウト

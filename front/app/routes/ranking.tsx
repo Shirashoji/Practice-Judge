@@ -100,7 +100,7 @@ export default function UsersRanking({ loaderData }) {
                         })}
                         {displayUsers.length === 0 && (
                             <tr>
-                                <td colSpan="5" style={{ textAlign: "center" }}>
+                                <td colSpan={5} style={{ textAlign: "center" }}>
                                     直近1週間でACを獲得したユーザーがいません。
                                 </td>
                             </tr>

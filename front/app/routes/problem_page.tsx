@@ -7,7 +7,7 @@ import parse from 'html-react-parser';
 import renderMathInElement from '../auto-render';
 import { AceEditorWritable } from '../ace_editor';
 
-import { createPrompt } from '../prompt.ts';
+import { createPrompt } from '../prompt';
 import { ChatLauncher } from '../llm/ChatLauncher';
 
 export function meta({ data }: Route.MetaArgs) {

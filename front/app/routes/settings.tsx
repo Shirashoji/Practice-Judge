@@ -65,7 +65,7 @@ function LlmSettings () {
             setData(await fetchSettings());
         }
         catch (e) {
-            setMsg(e.message ?? "設定の取得に失敗しました。");
+            setMsg(e instanceof Error ? e.message : "設定の取得に失敗しました。");
         }
         setLoading(false);
     }
@@ -81,7 +81,7 @@ function LlmSettings () {
             setMsg("保存しました。");
         }
         catch (e) {
-            setMsg(e.message ?? "保存に失敗しました。");
+            setMsg(e instanceof Error ? e.message : "保存に失敗しました。");
         }
         setSaving(false);
     }
