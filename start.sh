@@ -8,7 +8,7 @@
 
 # --- 設定エリア ---
 # このスクリプトを実行すべきディレクトリの名前
-EXPECTED_DIR_NAME="online-judge" 
+EXPECTED_DIR_NAME="Practice-Judge" 
 SESSION_NAME="PracticeJudge"
 
 IMAGE_NAME="judge-env"

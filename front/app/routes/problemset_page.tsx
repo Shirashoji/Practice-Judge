@@ -116,7 +116,7 @@ export default function Page({ params, loaderData }) {
                             return (
                                 <tr key={p.id}>
                                     <td style={{ background: `${calcColor(p.id)}` }}>{ALP[index]}</td>
-                                    <td style={{ background: `${calcColor(p.id)}` }}><Link to={`/problems/no/${p.id}`} target="_blank" rel="noopener noreferrer">{p.title}</Link></td>
+                                    <td style={{ background: `${calcColor(p.id)}` }}><Link to={`/problems/no/${p.id}`}>{p.title}</Link></td>
                                     <td style={{ background: `${calcColor(p.id)}` }}>{diff}</td>
                                     <td style={{ background: `${calcColor(p.id)}` }}>
                                         {rate[p.id] == null ? 0 : rate[p.id].solvers}

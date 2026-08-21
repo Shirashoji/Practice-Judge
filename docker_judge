@@ -1,6 +1,9 @@
 # ビルド
 # docker build -f docker_judge -t judge-env .
 
+# インストーラ等が無いので、dockerイメージに頼る
+FROM golang:1.26 AS go
+
 FROM ubuntu:24.04
 
 # c c++ python3
@@ -15,6 +18,9 @@ RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
+# golang(go 1.26.x)
+COPY --from=go /usr/local/go /usr/local/
+
 # user作成 + 切り替え
 RUN useradd -m runner
 USER runner
@@ -28,7 +34,7 @@ RUN curl -fsSL https://deno.land/x/install/install.sh | bash -s v2.5.4
 # 環境変数
 ENV LIBRARY_PATH=/home/runner/dlang/dmd-2.111.0/linux/lib64 \
     LD_LIBRARY_PATH=/home/runner/dlang/dmd-2.111.0/linux/lib64 \
-    PATH=/home/runner/.deno/bin:/home/runner/dlang/dmd-2.111.0/linux/bin64:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    PATH="${PATH}:/home/runner/.deno/bin:/home/runner/dlang/dmd-2.111.0/linux/bin64:/usr/local/go/bin"
 
 
 WORKDIR /home/runner/work

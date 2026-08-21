@@ -185,6 +185,7 @@ export default function Page ({ loaderData }) {
                                 <option value="C">C</option>
                                 <option value="C++">C++</option>
                                 <option value="D">D</option>
+                                <option value="go">go</option>
                                 <option value="Python3">Python3</option>
                                 <option value="JavaScript">JavaScript</option>
                                 <option value="TypeScript">TypeScript</option>

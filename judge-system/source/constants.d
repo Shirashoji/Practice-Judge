@@ -50,6 +50,7 @@ enum Language : string {
     python3 = "Python3",
     javascript = "JavaScript", // node.js
     typescript = "TypeScript", // deno
+    go = "go",
 }
 
 enum JudgeProcessState : string {
@@ -78,6 +79,7 @@ immutable string[Language] usercodeFileName = [
     Language.python3:    "a.py",
     Language.javascript: "a.js",
     Language.typescript: "a.ts",
+    Language.go:         "a.go",
 ];
 
 // ジャッジコードのファイル名
@@ -88,6 +90,7 @@ immutable string[Language] judgecodeFileName = [
     Language.python3:    "judge.py",
     Language.javascript: "judge.js",
     Language.typescript: "judge.ts",
+    Language.go:         "judge.go",
 ];
 
 string judgeInputFileName = "judge_input";
@@ -107,10 +110,13 @@ immutable string[2][][Language] preUsercodeCompileCopy = [
         ["a.py", "a.py"],
     ],
     Language.javascript: [
-        ["a.js", "a.js"]
+        ["a.js", "a.js"],
     ],
     Language.typescript: [
         ["a.ts", "a.ts"],
+    ],
+    Language.go: [
+        ["a.go", "a.go"],
     ],
 ];
 
@@ -122,6 +128,7 @@ immutable string[Language] compileUsercodeCommand = [
     Language.python3   : "python3 -m py_compile a.py",
     Language.javascript: "node --check a.js",
     Language.typescript: "deno check a.ts",
+    Language.go        : "go build -o a.out a.go",
 ];
 
 // ユーザーコードコンパイル後のファイルコピー（コンテナ -> ホスト）
@@ -143,6 +150,9 @@ immutable string[2][][Language] afterUsercodeCompileCopy = [
     ],
     Language.typescript: [
         ["a.ts", "a.ts"],
+    ],
+    Language.go: [
+        ["a.out", "a.out"],
     ],
 ];
 
@@ -166,6 +176,9 @@ immutable string[2][][Language] preJudgecodeCompileCopy = [
     Language.typescript: [
         ["judge.ts", "judge.ts"],
     ],
+    Language.go: [
+        ["judge.go", "judge.go"],
+    ],
 ];
 
 // ジャッジコードコンパイル時の実行コマンド
@@ -176,6 +189,7 @@ immutable string[Language] compileJudgecodeCommand = [
     Language.python3   : "python3 -m py_compile judge.py",
     Language.javascript: "node --check judge.js",
     Language.typescript: "deno check judge.ts",
+    Language.go        : "go build -o judge judge.go",
 ];
 
 // ジャッジコードコンパイル後のファイルコピー（コンテナ -> ホスト）
@@ -197,6 +211,9 @@ immutable string[2][][Language] afterJudgecodeCompileCopy = [
     ],
     Language.typescript: [
         ["judge.ts", "judge.ts"],
+    ],
+    Language.go: [
+        ["judge", "judge"],
     ],
 ];
 
@@ -226,6 +243,10 @@ immutable string[2][][Language] preExecuteCopy = [
         [userInputFile, userInputFile],
         ["a.ts", "a.ts"],
     ],
+    Language.go: [
+        [userInputFile, userInputFile],
+        ["a.out", "a.out"],
+    ],
 ];
 
 // 実行時の実行コマンド
@@ -236,6 +257,7 @@ immutable string[Language] executeCommand = [
     Language.python3   : "python3 a.py",
     Language.javascript: "node a.js",
     Language.typescript: "deno run --allow-all a.ts",
+    Language.go        : "./a.out",
 ];
 
 // ジャッジ前ファイルコピー
@@ -276,6 +298,12 @@ immutable string[2][][Language] preJudgeCopy = [
         [usersStdoutFile, usersStdoutFile],
         [judgeInputFile, judgeInputFile],
     ],
+    Language.go: [
+        ["judge", "judge"],
+        [userInputFile, userInputFile],
+        [usersStdoutFile, usersStdoutFile],
+        [judgeInputFile, judgeInputFile],
+    ],
 ];
 
 // ジャッジ時の実行コマンド
@@ -286,6 +314,7 @@ immutable string[Language] judgeCommand = [
     Language.python3   : "python3 judge.py",
     Language.javascript: "node judge.js",
     Language.typescript: "deno run --allow-all judge.ts",
+    Language.go        : "./judge",
 ];
 
 Language strToLanguage (string slang) {
