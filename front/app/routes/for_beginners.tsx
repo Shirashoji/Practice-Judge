@@ -135,7 +135,7 @@ export default function ForBeginners() {
 
                     <dt>Q. 対応している言語は何ですか？</dt>
                     <dd>
-                        A. 現在はPython3（Python 3.12.3）、Javascript（Node.js v24.13.0）、Typescript（Deno v2.5.4）、D（dmd-2.111.0）、C、C++（gcc 13.3.0）、go（go1.26.7）に対応しています。なお、標準ライブラリ以外は利用できません。
+                        A. 現在はPython3（Python 3.12.3）、Javascript（Node.js v24.13.0）、Typescript（Deno v2.5.4）、D（dmd-2.111.0）、C、C++（gcc 13.3.0）、go（go1.26.7）、Java（OpenJDK 25.0.4）に対応しています。なお、標準ライブラリ以外は利用できません。
                     </dd>
                 </dl>
 

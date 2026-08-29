@@ -22,21 +22,21 @@ struct Container {
     }
 
     void createNew (string cmd) {
-        auto args = [
+        auto ret = execute([
             "docker", "container", "create",
             "--memory", format("%sk", memoryLimitKb),
             "--memory-swap", format("%sk", memoryLimitKb),
-            "--env NO_COLOR=true",
+            "--env", "NO_COLOR=true",
             "--net", "none",
             "--pids-limit", "100",
             "--interactive",
             "--init",
-            "--entrypoint=\"\"",
+            "--entrypoint", "",
             "judge-env",
-            cmd,
-        ];
-        string concated = args.fold!((a, b) => a ~ " " ~ b)("");
-        containerId = executeShell(concated).output.strip;
+            "/bin/sh", "-c", cmd,
+        ]);
+
+        containerId = ret.output.strip;
     }
 
     void copyFileToContainer (string hostAbsPath, string containerAbsPath) {

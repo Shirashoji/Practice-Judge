@@ -1,4 +1,5 @@
 import AceEditor from "react-ace";
+import "ace-builds/src-noconflict/mode-java";
 import "ace-builds/src-noconflict/mode-javascript";
 import "ace-builds/src-noconflict/mode-typescript";
 import "ace-builds/src-noconflict/mode-python";
@@ -19,6 +20,7 @@ const normalizedLanguage = {
     go: "golang",
     TypeScript: "typescript",
     JavaScript: "javascript",
+    Java: "java",
     Python3: "python",
     html: "html",
 };

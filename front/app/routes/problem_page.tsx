@@ -210,6 +210,7 @@ export default function Page({ params, loaderData }) {
                     <option value="D">D（dmd-2.111.0）</option>
                     <option value="go">go（go1.26.7）</option>
                     <option value="Python3">Python3（Python 3.12.3）</option>
+                    <option value="Java">Java（OpenJDK 25.0.4）</option>
                     <option value="JavaScript">JavaScript（Node.js v24.13.0）</option>
                     <option value="TypeScript">TypeScript（Deno v2.5.4）</option>
                 </select>

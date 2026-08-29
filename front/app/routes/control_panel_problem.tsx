@@ -197,6 +197,7 @@ export default function ControlPanelProblem ({ loaderData, params }) {
                     <option value="D">D</option>
                     <option value="go">go</option>
                     <option value="Python3">Python3</option>
+                    <option value="Java">Java</option>
                     <option value="JavaScript">JavaScript</option>
                     <option value="TypeScript">TypeScript</option>
                 </select>
