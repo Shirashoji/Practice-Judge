@@ -22,29 +22,27 @@ struct Container {
     }
 
     void createNew (string cmd) {
-        auto args = [
+        auto ret = execute([
             "docker", "container", "create",
             "--label", "practice-judge.sandbox=1",
             "--memory", format("%sk", memoryLimitKb),
             "--memory-swap", format("%sk", memoryLimitKb),
-            "--env NO_COLOR=true",
+            "--env", "NO_COLOR=true",
             "--net", "none",
             "--pids-limit", "100",
             "--interactive",
             "--init",
-            "--entrypoint=\"\"",
+            "--entrypoint", "",
             "judge-env",
-            cmd,
-        ];
-        string concated = args.fold!((a, b) => a ~ " " ~ b)("");
-        auto res = executeShell(concated);
-        if (res.status != 0) {
+            "/bin/sh", "-c", cmd,
+        ]);
+        if (ret.status != 0) {
             // 失敗時のoutputはエラーメッセージなのでcontainerIdに入れない
-            stderr.writeln("docker container create failed: ", res.output);
+            stderr.writeln("docker container create failed: ", ret.output);
             containerId = "";
             return;
         }
-        containerId = res.output.strip;
+        containerId = ret.output.strip;
     }
 
     void copyFileToContainer (string hostAbsPath, string containerAbsPath) {

@@ -14,7 +14,7 @@
     "@anthropic-ai/vertex-sdk": "^0.19.4",
     "@google/genai": "^2.0.1",
     "@react-router/express": "^7.9.6",
-    "adm-zip": "^0.5.16",
+    "adm-zip": "^0.6.0",
     "bcrypt": "^6.0.0",
     "better-sqlite3": "^13.0.3",
     "better-sqlite3-session-store": "^0.1.0",
