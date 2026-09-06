@@ -20,6 +20,8 @@ RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
     && rm -rf /var/lib/apt/lists/*
 
 # golang(go 1.26.x)
+# 展開先は /usr/local/go ではなく /usr/local 直下なので、goの実体は /usr/local/bin/go になる。
+# PATHの /usr/local/go/bin は本家由来だが実在しない（標準PATHの /usr/local/bin で引けている）
 COPY --from=go /usr/local/go /usr/local/
 
 # java(openjdk 25)
