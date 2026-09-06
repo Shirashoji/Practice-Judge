@@ -1,6 +1,9 @@
 # ビルド
 # docker build -f docker_judge -t judge-env .
 
+# インストーラ等が無いので、dockerイメージに頼る
+FROM golang:1.26 AS go
+
 FROM ubuntu:24.04
 ARG TARGETARCH
 
@@ -14,6 +17,14 @@ RUN apt-get update \
 RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
     && apt-get update \
     && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# golang(go 1.26.x)
+COPY --from=go /usr/local/go /usr/local/
+
+# java(openjdk 25)
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends openjdk-25-jdk-headless \
     && rm -rf /var/lib/apt/lists/*
 
 # user作成 + 切り替え
@@ -39,7 +50,7 @@ RUN curl -fsSL https://deno.land/x/install/install.sh | bash -s v2.5.4
 # 環境変数(dmd/ldcのパスは存在する方だけが使われる。無い方は無害)
 ENV LIBRARY_PATH=/home/runner/dlang/dmd-2.111.0/linux/lib64:/home/runner/dlang/ldc-1.41.0/lib \
     LD_LIBRARY_PATH=/home/runner/dlang/dmd-2.111.0/linux/lib64:/home/runner/dlang/ldc-1.41.0/lib \
-    PATH=/home/runner/.deno/bin:/home/runner/dlang/dmd-2.111.0/linux/bin64:/home/runner/dlang/ldc-1.41.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    PATH=/home/runner/.deno/bin:/home/runner/dlang/dmd-2.111.0/linux/bin64:/home/runner/dlang/ldc-1.41.0/bin:/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 
 WORKDIR /home/runner/work

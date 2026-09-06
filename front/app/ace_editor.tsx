@@ -1,9 +1,11 @@
 import AceEditor from "react-ace";
+import "ace-builds/src-noconflict/mode-java";
 import "ace-builds/src-noconflict/mode-javascript";
 import "ace-builds/src-noconflict/mode-typescript";
 import "ace-builds/src-noconflict/mode-python";
 import "ace-builds/src-noconflict/mode-c_cpp";
 import "ace-builds/src-noconflict/mode-d";
+import "ace-builds/src-noconflict/mode-golang";
 import "ace-builds/src-noconflict/mode-html";
 import "ace-builds/src-noconflict/mode-text";
 import "ace-builds/src-noconflict/theme-chrome";
@@ -17,8 +19,10 @@ const normalizedLanguage: Record<string, string | undefined> = {
     C: "c_cpp",
     "C++": "c_cpp",
     D: "d",
+    go: "golang",
     TypeScript: "typescript",
     JavaScript: "javascript",
+    Java: "java",
     Python3: "python",
     html: "html",
 };
