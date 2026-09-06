@@ -1,7 +1,7 @@
 @import "@picocss/pico/css/pico.slate.css";
 @import "@picocss/pico/css/pico.colors.css";
 @import "tailwindcss";
-@custom-variant dark (&:where(.llm-workspace.dark, .llm-workspace.dark *));
+@custom-variant dark (&:where(.dark, .dark *));
 
 html {
     --header-bg: var(--pico-color-sand-100);

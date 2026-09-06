@@ -6,8 +6,8 @@ const { checkUserStatus, adminOnly } = require('./logincheck.js');
 
 const config = require('./llm/config.js');
 const store = require('./llm/store.js');
-const cost = require('./llm/cost.js');
 const { normalizeModelSettings } = require('./llm/admin_settings.js');
+const { summarizeCurrentMonthUsage, summarizeUsageAnalytics } = require('./llm/usage_stats.js');
 
 const adminLlmRouter = express.Router({ mergeParams: true });
 module.exports = { adminLlmRouter };
@@ -24,7 +24,42 @@ const VISIBLE_CONDITION = "(c.share_mode = 'shared' OR c.forced_shared = 1)";
 const NUMERIC_KEYS = ['default_shared_limit_usd', 'default_private_limit_usd', 'system_monthly_limit_usd'];
 const MODE_KEYS = ['default_shared_limit_mode', 'default_private_limit_mode', 'system_limit_mode'];
 
+// ------------------------------------------------------------
+// 利用分析
+// ------------------------------------------------------------
+
+adminLlmRouter.get('/usage', adminOnly, (req, res) => {
+    const now = new Date();
+    const currentMonth = config.billingMonth(now);
+    const month = req.query.month === undefined ? currentMonth : req.query.month;
+    const selectedDate = req.query.date === undefined || req.query.date === '' ? null : req.query.date;
+
+    if (typeof month !== 'string' || (selectedDate != null && typeof selectedDate !== 'string')) {
+        return res.status(400).json({ error: 'monthとdateは文字列で指定してください。' });
+    }
+
+    try {
+        return res.json({
+            ...summarizeUsageAnalytics(db, month, selectedDate, now),
+            systemLimit: {
+                mode: config.getSetting('system_limit_mode'),
+                usd: config.getSettingNumber('system_monthly_limit_usd'),
+            },
+        });
+    }
+    catch (error) {
+        if (error instanceof TypeError || error instanceof RangeError) {
+            return res.status(400).json({ error: error.message });
+        }
+        throw error;
+    }
+});
+
 adminLlmRouter.get('/settings', adminOnly, (req, res) => {
+    // 月初をまたぐ瞬間でも課金月と日次グラフの終端を同じ基準にする。
+    const now = new Date();
+    const billingMonth = config.billingMonth(now);
+    const currentMonthUsage = summarizeCurrentMonthUsage(db, billingMonth, now);
     const modelSettings = normalizeModelSettings(
         config.getSettingJSON('allowed_models'),
         config.getSettingJSON('model_by_difficulty'),
@@ -62,8 +97,9 @@ adminLlmRouter.get('/settings', adminOnly, (req, res) => {
             ...config.getPricing(m),
         })),
         currentMonth: {
-            billingMonth: config.billingMonth(),
-            systemCostUsd: cost.monthlyCostSystem(),
+            ...currentMonthUsage,
+            // 既存クライアントが参照している名前は残し、集計結果を真実の源にする。
+            systemCostUsd: currentMonthUsage.totals.costUsd,
         },
     });
 });
