@@ -82,23 +82,31 @@ DBはSQLite1本（`data.db`）。Composeではnamed volume `dbdata` に置かれ
 
 ## ブランチとPR
 
-**GitHub Flow に従う。幹は `main` 1本だけで、常にデプロイ可能な状態に保つ。**
+**GitHub Flow に従う。フォークの幹は `develop` 1本で、常にデプロイ可能な状態に保つ。**
+
+`main` は幹ではない。本家（`upstream`）と揃えておくための面として置いてあり、
+日々の変更は入れない。
+
+| ブランチ | 役割 |
+|---|---|
+| `develop` | フォークの幹。トピックブランチはここから切り、PRのマージ先もここ |
+| `main` | 本家と揃えておく面。フォーク固有の変更は入れない |
 
 ### 作業を始める前に
 
-**`main` で直接作業しない。** 最初のコミットの前に、必ず現在地を確認してブランチを切る。
+**`develop` で直接作業しない。** 最初のコミットの前に、必ず現在地を確認してブランチを切る。
 
 ```sh
 git branch --show-current        # いまどこにいるか確認する
-git switch main && git pull      # 幹を最新にしてから
+git switch develop && git pull   # 幹を最新にしてから
 git switch -c feature/add-rust-language
 ```
 
 ### 流れ
 
-1. `main` からトピックブランチを切る
+1. `develop` からトピックブランチを切る
 2. こまめにコミットする（粒度は下の「コミット」を参照）
-3. `main` へ Pull Request を出す
+3. `develop` へ Pull Request を出す
 4. マージされたらトピックブランチは消す
 
 ### ブランチ名
@@ -111,27 +119,44 @@ git switch -c feature/add-rust-language
 | `fix/` | バグ修正 |
 | `chore/` | 依存更新・設定・雑務 |
 | `docs/` | ドキュメントのみ |
+| `contrib/` | 本家（upstream）へ還元するためのもの。`upstream/main` から切る |
 
 コミットの prefix とは対応するが綴りが違うものがある。機能追加はブランチが `feature/` で
 コミットは `feat:`。ブランチ名に `feat/` は使わない。
 
 ### 守ること
 
-- **`main` に直接コミットしない。** 必ずトピックブランチ経由でPRにする
-- **1つのブランチに無関係な変更を混ぜない。** 言語追加とバグ修正は別のブランチにする
-- **長生きさせない。** 数日で `main` に還るサイズに切る。育ちすぎたら分割する
-- **`develop` は使わない。** かつて `main` と `develop` が併存してPRのマージ先が
+- **`develop` に直接コミットしない。** 必ずトピックブランチ経由でPRにする
+- **PRのマージ先は必ず `develop`。** かつて `main` と `develop` が併存してマージ先が
   揃わなくなった（PR #1 は `main` へ、PR #2 は `develop` へ入っている）。
-  この混乱を避けるため幹は `main` に一本化する
+  同じことを繰り返さないよう、幹を `develop` に一本化してマージ先を固定する
+- **1つのブランチに無関係な変更を混ぜない。** 言語追加とバグ修正は別のブランチにする
+- **長生きさせない。** 数日で `develop` に還るサイズに切る。育ちすぎたら分割する
 
-### upstream への還元
+### upstream の取り込み
 
-`main` が本家（`upstream`）と繋がる面なので、還元するときは `main` から upstream へPRを出す。
+本家の変更は `develop` へ直接マージする。`main` を経由させると取り込み口が2つになり、
+どちらが最新か分からなくなる。
 
 ```sh
 git fetch upstream
-git switch main
-git merge upstream/main   # 本家の変更を取り込んでから作業を始める
+git switch develop
+git merge upstream/main
+```
+
+本家はフォークが触っているファイルを同じように触るので、衝突する前提で進める。
+解決の判断はコミット本文に残す（何を採って何を残したか）。
+
+### upstream への還元
+
+フォーク固有の変更（Docker Compose対応、AI学習支援機能など）が積み上がっているため、
+`develop` をまるごと本家へ出すことはしない。還元したいまとまりができたら、
+`upstream/main` から枝を切って必要なコミットだけ載せ、そこから本家へPRを出す。
+
+```sh
+git fetch upstream
+git switch -c contrib/add-rust-language upstream/main
+git cherry-pick <還元したいコミット>
 ```
 
 ## コミット
